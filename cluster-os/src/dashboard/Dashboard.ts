@@ -286,6 +286,11 @@ const server = http.createServer(async (req, res) => {
     jobMap.delete(jobId);
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ status: `Job ${jobId} cancelled` }));
+  } else if (pathname === '/dashboard-client.js') {
+    const clientPath = path.join(__dirname, 'dashboard-client.js');
+    const client = fs.readFileSync(clientPath, 'utf-8');
+    res.writeHead(200, { 'Content-Type': 'application/javascript' });
+    res.end(client);
   } else if (pathname === '/dashboard.css') {
     const cssPath = path.join(__dirname, 'dashboard.css');
     const css = fs.readFileSync(cssPath, 'utf-8');
