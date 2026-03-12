@@ -3,7 +3,7 @@
  * It supports heterogeneity by allowing flexible payloads and includes metadata for routing.
  */
 export interface ClusterMessage {
-  type: 'HEARTBEAT' | 'JOB_SUBMIT' | 'JOB_RESULT' | 'SUB_JOB_SUBMIT' | 'SUB_JOB_RESULT' | 'CLUSTER_STATUS' | 'CLUSTER_STATUS_REPLY';
+  type: 'HEARTBEAT' | 'JOB_SUBMIT' | 'JOB_RESULT' | 'SUB_JOB_SUBMIT' | 'SUB_JOB_RESULT' | 'CLUSTER_STATUS' | 'CLUSTER_STATUS_REPLY' | 'REGISTER_LB' | 'DEREGISTER_LB' | 'REGISTER_LB_ACK';
   senderId: string;
   requestId: string;
   payload: any;

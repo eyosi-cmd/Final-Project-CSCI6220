@@ -6,7 +6,7 @@ import { spawn, ChildProcess } from 'child_process';
 
 const port = 5000;
 const lbMetricsPort = 9001;
-const lbPort = 3000;
+const lbPort = 3010; // Updated to new LoadBalancer port
 
 interface ClusterStatus {
   healthyWorkers: number;

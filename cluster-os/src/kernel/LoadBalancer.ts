@@ -4,6 +4,7 @@ import { Scheduler } from './Scheduler';
 import { ClusterMessage, JobContext, ClientAffinityRecord, CircuitBreakerStatus } from '../common/types';
 import { EventEmitter } from 'events';
 import * as http from 'http';
+import * as net from 'net';
 
 class Dispatcher extends EventEmitter {
   private transport: TCPTransport;
@@ -421,9 +422,16 @@ class LoadBalancer {
   private scheduler: Scheduler;
   private workers: Worker[] = [];
   private workerPoolSize: number;
+  private dnsSocket: net.Socket | null = null;
+  private lbId: string;
+  private lbPort: number;
+  private dnsRegistered = false;
 
-  constructor(port: number, workerPoolSize: number = 4) {
+  constructor(port: number, workerPoolSize: number = 4, dnsHost: string = 'localhost', dnsRegistrationPort: number = 3000) {
     this.workerPoolSize = workerPoolSize;
+    this.lbPort = port;
+    this.lbId = `LB-${Math.random().toString(36).substr(2, 9)}`;
+    
     this.dispatcher = new Dispatcher(port);
     this.failureDetector = new FailureDetector();
     this.scheduler = new Scheduler(this.failureDetector);
@@ -431,6 +439,107 @@ class LoadBalancer {
     this.initializeWorkerPool();
     this.monitorClusterHealth();
     this.startMetricsServer();
+    this.registerWithDNS(dnsHost, dnsRegistrationPort);
+  }
+
+  /**
+   * Registers this LoadBalancer instance with the DNS Router.
+   */
+  private registerWithDNS(dnsHost: string, dnsPort: number) {
+    try {
+      this.dnsSocket = net.createConnection({ host: dnsHost, port: dnsPort }, () => {
+        console.log(`[LoadBalancer] Connected to DNSRouter for registration`);
+        
+        const registerMessage: ClusterMessage = {
+          type: 'REGISTER_LB',
+          senderId: this.lbId,
+          requestId: `register-${Date.now()}`,
+          payload: {
+            lbId: this.lbId,
+            host: 'localhost',
+            port: this.lbPort
+          }
+        };
+        
+        this.dnsSocket!.write(JSON.stringify(registerMessage) + '\n');
+      });
+
+      let buffer = '';
+      this.dnsSocket.on('data', (data) => {
+        buffer += data.toString();
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.trim().length === 0) continue;
+          
+          try {
+            const response: ClusterMessage = JSON.parse(line);
+            if (response.type === 'REGISTER_LB_ACK') {
+              const { success, lbId } = response.payload;
+              if (success) {
+                console.log(`[LoadBalancer] Successfully registered with DNSRouter as ${lbId}`);
+                this.dnsRegistered = true;
+              } else {
+                console.error(`[LoadBalancer] Failed to register with DNSRouter:`, response.payload.error);
+              }
+            }
+          } catch (err) {
+            console.error(`[LoadBalancer] Error parsing DNS response:`, err);
+          }
+        }
+      });
+
+      this.dnsSocket.on('error', (err) => {
+        console.error(`[LoadBalancer] DNS registration connection error:`, err);
+        this.dnsSocket = null;
+        
+        // Retry registration after a delay
+        console.log(`[LoadBalancer] Retrying DNS registration in 5 seconds...`);
+        setTimeout(() => {
+          this.registerWithDNS(dnsHost, dnsPort);
+        }, 5000);
+      });
+
+      this.dnsSocket.on('close', () => {
+        console.log(`[LoadBalancer] DNS registration connection closed`);
+        this.dnsSocket = null;
+        this.dnsRegistered = false;
+      });
+    } catch (err) {
+      console.error(`[LoadBalancer] Failed to connect to DNSRouter:`, err);
+      console.log(`[LoadBalancer] Retrying DNS registration in 5 seconds...`);
+      setTimeout(() => {
+        this.registerWithDNS(dnsHost, dnsPort);
+      }, 5000);
+    }
+  }
+
+  /**
+   * Deregisters this LoadBalancer instance with the DNS Router.
+   */
+  private deregisterFromDNS() {
+    if (this.dnsSocket && this.dnsRegistered) {
+      const deregisterMessage: ClusterMessage = {
+        type: 'DEREGISTER_LB',
+        senderId: this.lbId,
+        requestId: `deregister-${Date.now()}`,
+        payload: {
+          lbId: this.lbId
+        }
+      };
+      
+      this.dnsSocket.write(JSON.stringify(deregisterMessage) + '\n');
+      console.log(`[LoadBalancer] Deregistration request sent to DNSRouter`);
+      
+      // Close the connection after a delay to allow the message to be processed
+      setTimeout(() => {
+        if (this.dnsSocket) {
+          this.dnsSocket.end();
+          this.dnsSocket = null;
+        }
+      }, 500);
+    }
   }
 
   /**
@@ -498,19 +607,23 @@ class LoadBalancer {
    * Gracefully shuts down the LoadBalancer.
    */
   shutdown() {
+    console.log('[LoadBalancer] Initiating graceful shutdown...');
+    this.deregisterFromDNS();
     this.workers.forEach(w => w.stop());
-    console.log('[LoadBalancer] Shutdown initiated');
+    console.log('[LoadBalancer] Shutdown completed');
   }
 }
 
 // Initialize the Load Balancer with 4 workers processing messages asynchronously
-const lb = new LoadBalancer(3000, 4);
+// Default: LB listens on port 3010, DNS Router registration on port 3000
+const lb = new LoadBalancer(3010, 4, 'localhost', 3000);
 
 console.clear();
 console.log('_______________________________________________');
 console.log('________________  Load Balancer   _____________');
-console.log('||          Load Balancer listening on port 3000   ||');
-console.log('||  [LoadBalancer] Healthy workers: 0              ||');
+console.log('||          Load Balancer listening on port 3010  ||');
+console.log('||  DNS Router: localhost:3000 (Registration)     ||');
+console.log('||  [LoadBalancer] Healthy workers: 0             ||');
 console.log('__________________________________________________');
 
 // Graceful shutdown on signals
