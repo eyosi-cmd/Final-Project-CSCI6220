@@ -1,188 +1,94 @@
 # ClusterOS
 
-A simulation of a distributed operating system where a Load Balancer acts as the "kernel," providing a Single System Image (SSI) over a cluster of commodity worker nodes.
+So basically a distributed system where a load balancer acts like the kernel and manage a cluster of worker nodes.
 
-Based on principles from "Distributed Systems: Concepts and Design (5th Edition)" by George Coulouris.
+## What it do
 
-## Architecture
+- **Load Balancer**: added consepts of job routings, it tracks workers,also handle failures
+- **Worker Nodes**: They do the actual work
+- **Clients**: Send jobs to the system
 
-- **Load Balancer (Kernel)**: Manages the cluster, handles job scheduling, and failure detection.
-- **Worker Nodes**: Commodity nodes that execute jobs.
-- **Clients**: End users submitting jobs.
+Everything communicate using TCP sockets and JSON messages. it is pretty straightforward.
 
-Communication uses raw TCP sockets with JSON message framing.
+## How to Actually Run It
 
-### System Overview
-```mermaid
-graph TB
-    C[Client] -->|Submit Job| LB[Load Balancer]
-    LB -->|Dispatch Job| W1[Worker Node 1]
-    LB -->|Dispatch Job| W2[Worker Node 2]
-    LB -->|Dispatch Job| WN[Worker Node N]
-    
-    W1 -->|Send Results| LB
-    W2 -->|Send Results| LB
-    WN -->|Send Results| LB
-    
-    LB -->|Return Results| C
-    
-    W1 -.->|Heartbeat| LB
-    W2 -.->|Heartbeat| LB
-    WN -.->|Heartbeat| LB
-```
+### Prerequisites & Setup
 
-### Detailed Component Architecture
+Before you run anything, make sure you got everything you need:
 
-**Load Balancer (Kernel)**
-```
-┌──────────────────────────────────────────┐
-│      Load Balancer (Kernel)              │
-├──────────────────────────────────────────┤
-│ • TCP Server on Port 3000                │
-│ • Routes messages between clients/workers│
-│ • Provides Single System Image (SSI)     │
-├──────────────────────────────────────────┤
-│ Subcomponents:                           │
-│ ┌─────────────────────────────────────┐  │
-│ │ Failure Detector                    │  │
-│ │ - Tracks node heartbeats (5s TTL)   │  │
-│ │ - Maintains list of healthy nodes   │  │
-│ └─────────────────────────────────────┘  │
-│ ┌─────────────────────────────────────┐  │
-│ │ Scheduler                           │  │
-│ │ - Assigns jobs to worker nodes      │  │
-│ │ - Load-balancing logic              │  │
-│ └─────────────────────────────────────┘  │
-│ ┌─────────────────────────────────────┐  │
-│ │ Message Router                      │  │
-│ │ - Handles HEARTBEAT messages        │  │
-│ │ - Handles JOB_SUBMIT messages       │  │
-│ │ - Handles JOB_RESULT aggregation    │  │
-│ └─────────────────────────────────────┘  │
-└──────────────────────────────────────────┘
-```
+**Required:**
+- Node.js installed (you can get it from nodejs.org)
+- npm come with Node.js so you should have it automatically
+- Git (optional but recommended for cloning the repo)
 
-**Worker Node**
-```
-┌──────────────────────────────┐
-│      Worker Node             │
-├──────────────────────────────┤
-│ • Unique ID (UUID)           │
-│ • Connects to Load Balancer  │
-│ • Executes assigned jobs     │
-│ • Sends heartbeats (2s)      │
-│ • Tracks active job count    │
-└──────────────────────────────┘
-```
+**Installation Steps:**
+1. Make sure you in the `cluster-os` directory: `cd cluster-os`
+2. Install all the dependencies: `npm install`
+3. Wait for npm to finish installing packages (might take a minute)
+4. Now you ready to run the application
 
-**User Client**
-```
-┌──────────────────────────────┐
-│      User Client             │
-├──────────────────────────────┤
-│ • Interactive REPL interface │
-│ • Submit jobs (from arrays)  │
-│ • Query cluster status       │
-│ • Receive job results        │
-│ • Supports: submit, status   │
-└──────────────────────────────┘
-```
-
-### Message Flow
-
-**Worker Registration & Health Monitoring:**
-```
-1. Worker Node connects to Load Balancer (Port 3000)
-2. TCP connection established via ClientTCPTransport
-3. Worker Node sends HEARTBEAT message immediately
-4. Load Balancer receives HEARTBEAT
-5. FailureDetector updates: heartbeats[workerId] = Date.now()
-6. Scheduler includes worker in healthy nodes list
-7. Every 1 second: Load Balancer displays updated healthy worker count
-8. Every 2 seconds: Worker Node sends next HEARTBEAT
-9. After 5 seconds without heartbeat: Worker marked as unhealthy
-```
-
-**Job Submission Flow:**
-```
-1. User submits job via Client: "submit [1,2,3,4,5]"
-2. Client sends JOB_SUBMIT message to Load Balancer
-3. Load Balancer receives JOB_SUBMIT in Scheduler
-4. Scheduler selects least-loaded healthy Worker Node
-5. Load Balancer sends JOB_SUBMIT to selected Worker
-6. Worker executes job (processes array with map)
-7. Worker sends JOB_RESULT back to Load Balancer
-8. Load Balancer sends JOB_RESULT back to Client
-9. Client displays result to user
-```
-
-**Cluster Status Query:**
-```
-1. User types "status" in Client
-2. Client sends CLUSTER_STATUS message
-3. Load Balancer queries FailureDetector.getHealthyNodes()
-4. Load Balancer sends CLUSTER_STATUS_REPLY with node list
-5. Client displays healthy nodes count and IDs
-```
-
-## Running the System
-
-### ⚡ Quickest Way: Dashboard UI (Recommended for Everyone)
-
-**One command to start everything:**
+### Using the Dashboard UI - Easier Way
 
 ```powershell
 cd cluster-os
 npm run start:dashboard
 ```
 
-Then **open your browser** to:
-```
-http://localhost:5000
-```
+Then open `http://localhost:5000` in your browser. You gonna see a nice UI with buttons and stuff. Just click to start the load balancer and add workers.
 
-**That's it!** All cluster management is now in your browser.
+#### Detailed Testing Based on Distributed Systems Concepts
 
-#### What You'll See:
+After you get the UI open, here some testing steps based on concepts from "Distributed Systems: Concepts and Design":
 
-The dashboard shows:
-- **Cluster Status Card**: Healthy workers, active jobs, queue size
-- **Controls Card**: Start/stop Load Balancer and Workers with buttons
-- **Job Submission Card**: Input array like `[1,2,3,4,5]` and submit
-- **Circuit Breaker Status**: Monitor each worker's health state
-- **Real-time Updates**: Metrics refresh every 2 seconds
+**Single System Image (SSI) Testing:**
+- Click "Start Load Balancer" - this create the kernel of your distributed system
+- Even though the Load Balancer is one component, it gonna present as one unified interface to clients
+- Submit multiple jobs and notice how you still interacting with one system even though there multiple workers behind scenes
+- This demonstrate the SSI principle where clients don't need to worry about which worker processing their job
 
-#### Step-by-Step Workflow:
+**Load Balancing & Job Distribution:**
+- Add 3 workers to the cluster
+- Submit several jobs in quick succession like `[1,2,3]`, `[4,5,6]`, `[7,8,9]`
+- Watch the dashboard - each worker should get roughly equal number of jobs (this the least-loaded scheduling algorithm)
+- This show how the system distribute work evenly across nodes
 
-**Step 1: Start Load Balancer**
-- Click blue button **"Start Load Balancer"**
-- Wait 2-3 seconds
-- You'll see a green success message
+**Failure Detection & Fault Tolerance:**
 
-**Step 2: Add Workers**
-- Click green button **"Add Worker"**
-- Wait 2 seconds
-- Repeat to add another worker
-- Watch "Healthy workers" count increase
-- **Expected**: 2 workers connected
+-Start the system with 2 workers
+- Submit a normal job first to confirm everything working
+- Then manually stop one of the worker processes (you can kill it from task manager or terminal)
+- Notice how the Load Balancer detect this within few seconds (heartbeat timeout is 5 seconds)
+- The dashboard should show that worker is no longer healthy
+- Submit another job and it should route to the remaining healthy worker
+- This demonstrate fault tolerance and automatic failure detection using heartbeat monitoring
 
-**Step 3: Submit Your First Job**
-- In "Submit Job" section, enter: `[1,2,3]`
-- Click green **"Submit"** button
-- Watch the result appear: **`[2,4,6]`** (each number doubled)
-- **Expected**: Input array gets transformed
+**Example Scenario for Fault Tolerance:**
+1. Start dashboard and click "Start Load Balancer"
+2. Add 2 workers - you should see both marked as "healthy" with green status
+3. Submit job `[10,20,30]` - you should get result `[20,40,60]` back (this confirm everything working)
+4. Now go to task manager (or use PowerShell) and kill one of the worker node processes
+5. Go back to dashboard - you might still see 2 workers but after 5-6 seconds one should change to "unhealthy" or disappear
+6. Submit another job `[5,15]` while one worker is down
+7. The Load Balancer automatically route it to the remaining healthy worker
+8. You still get result `[10,30]` back even though one worker crashed
+9. This show that the system can handle worker failures and keep operating
+10. The Load Balancer detect missing heartbeat from dead worker and exclude it from job scheduling
 
-**Step 4: Monitor in Real-Time**
-- Watch metrics update on the left
-- View circuit breaker status (should show CLOSED for healthy workers)
-- Queue size updates as jobs arrive
+**Concurrency Transparency:**
+- Submit multiple jobs from the browser dashboard at the same time
+- Type quick job like `[1]`, `[2]`, `[3]` and click submit multiple times rapidly
+- All jobs run in parallel on different workers without you needing to manage synchronization
+- The results come back as each worker finish, demonstrating that client don't see the concurrent nature
 
-**Step 5: Clean Up (Optional)**
-- Click **"Remove Worker"** to stop individual workers
-- Click **"Stop Load Balancer"** to shut down entire cluster
-- All metrics reset to 0
+ **Transparency in Action:**
+- Submit a job through the dashboard (location transparency)
+- The client don't need to know which worker will process it or where it located
+- Load Balancer handle all that transparently
+- Client just send job and get result back without caring about underlying distribution
 
-#### Example Session Output:
+### Or Use Command Line If You Want
+
+Open different terminals in your IDE (like VS Code or others) and run these commands one by one. Make sure you already ran `npm install` and your in the `cluster-os` directory:
 
 ```
 Dashboard listening on http://localhost:5000
@@ -291,14 +197,7 @@ cd cluster-os && npx ts-node src/worker/WorkerNode.ts
 cd cluster-os && npx ts-node src/client/UserClient.ts
 ```
 
-### Dashboard UI (Recommended for Visualization)
-
-The ClusterOS Dashboard provides a web-based interface to monitor and control your cluster in real-time. This is the **simplest way to run the entire system**.
-
-**Single Command Startup:**
-```powershell
-cd cluster-os
-npm run start:dashboard
+Then just type commands:
 ```
 
 Then open your browser to `http://localhost:5000`
@@ -363,34 +262,16 @@ _______________  DNS Router   _________________
 __________________________________________________
 ```
 
-The DNS Router listens for client connections and tunnels them to Load Balancer instances.
+## How This Work
 
-### Load Balancer Startup
+1. Workers connect and send heartbeats to the Load Balancer every 2 seconds
+2. Load Balancer keep track of which workers is still alive
+3. When user submit a job (like an array of numbers)
+4. Load Balancer route to the worker that got the least jobs
+5. Worker double each number in the array
+6. Result get sent back
 
-```
-_______________________________________________
-________________  Load Balancer   _____________
-||      Load Balancer listening on port 3000   ||
-||  [LoadBalancer] Healthy workers: 0          ||
-__________________________________________________
-```
-
-Each second, the healthy worker count updates as nodes connect via heartbeat.
-
-### Worker Node Startup
-
-```
-_______________________________________________
-________________   Worker Node   ______________
-||          Worker Node started                ||
-||  ID: c31825bd-48c5-4633-bad4-a004c885a542 ||
-||  Connected to LoadBalancer at localhost:3000||
-__________________________________________________
-```
-
-Worker nodes display their unique ID and connect to the Load Balancer automatically, sending heartbeats every 2 seconds.
-
-### User Client Startup
+## Project Structure
 
 ```
 _______________________________________________
@@ -404,31 +285,22 @@ __________________________________________________
 ClusterOS > 
 ```
 
-Clients provide an interactive REPL for submitting jobs and querying cluster status, routing through the DNS Router.
+## Testing It Out
 
-### Files & Directory Structure
+### Using the Dashboard (Recommended)
 
-```
-cluster-os/
-├── docs/
-│   └── screenshots/
-│       ├── worker-node-output.png
-│       └── user-client-output.png
-├── src/
-│   ├── client/          # User client REPL
-│   │   └── UserClient.ts
-│   ├── kernel/          # Load balancer (kernel)
-│   │   ├── LoadBalancer.ts
-│   │   └── Scheduler.ts
-│   ├── middleware/      # Failure detection
-│   │   └── FailureDetector.ts
-│   ├── transport/       # TCP communication
-│   │   └── TCPTransport.ts
-│   ├── worker/          # Worker nodes
-│   │   └── WorkerNode.ts
-│   └── common/          # Shared types
-│       └── types.ts
-├── package.json
-├── tsconfig.json
-└── README.md
-```
+1. Run the dashboard: `npm run start:dashboard`
+2. Open `http://localhost:5000` in your browser
+3. Click the "Start Load Balancer" button - should say it connected
+4. Click "Add Worker" button twice (so you got 2 workers)
+5. Now you should see both workers in the list showing as "healthy"
+6. Type some numbers in the job input field like `[1,2,3]` or `[10,20]`
+7. Click "Submit Job" button
+8. Wait a moment and you should see the result appear - each number get doubled
+9. For example `[1,2,3]` become `[2,4,6]`
+
+### Command Line Testing
+
+If you prefer command line you can submit jobs using the client terminal after everything running. You can type `submit [1,2,3,4,5]` and it gonna do the same thing as the dashboard.
+
+The dashboard show real-time metrics too - you can see how many jobs is running, how many completed, and worker status and stuff.
