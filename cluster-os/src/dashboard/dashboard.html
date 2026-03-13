@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ClusterOS Dashboard</title>
+    <link rel="stylesheet" href="dashboard.css">
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <div class="logo-section">
+                    <h1>ClusterOS</h1>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-grid">
+            <!-- Controls Panel -->
+            <section class="panel controls-panel">
+                <div class="panel-header">
+                    <h2>System Controls</h2>
+                </div>
+                <div class="panel-body">
+                    <div class="control-section">
+                        <h3>Load Balancer</h3>
+                        <div class="button-row">
+                            <button id="start-lb" class="btn btn-success" data-action="start-lb">Start LB</button>
+                            <button id="stop-lb" class="btn btn-danger" data-action="stop-lb">Stop LB</button>
+                        </div>
+                    </div>
+                    <div class="control-section">
+                        <h3>Workers</h3>
+                        <div class="button-row">
+                            <button id="add-worker" class="btn btn-primary" data-action="add-worker">Add Worker</button>
+                            <button id="remove-worker" class="btn btn-warning" data-action="remove-worker">Remove</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Metrics Panel -->
+            <section class="panel metrics-panel">
+                <div class="panel-header">
+                    <h2>Live Metrics</h2>
+                </div>
+                <div class="panel-body">
+                    <div class="metrics-container">
+                        <div class="metric-card">
+                            <div class="metric-header">Healthy</div>
+                            <div class="metric-value" id="metric-healthy">0</div>
+                            <div class="metric-subtext">workers</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-header">Total</div>
+                            <div class="metric-value" id="metric-total">0</div>
+                            <div class="metric-subtext">total</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-header">Active</div>
+                            <div class="metric-value" id="metric-active">0</div>
+                            <div class="metric-subtext">jobs</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-header">Queued</div>
+                            <div class="metric-value" id="metric-queued">0</div>
+                            <div class="metric-subtext">jobs</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Circuit Breakers Panel -->
+            <section class="panel circuit-panel">
+                <div class="panel-header">
+                    <h2>Circuit Status</h2>
+                    <div class="panel-timestamp">
+                        <span id="circuit-status-timestamp">--:--:--</span>
+                    </div>
+                </div>
+                <div class="panel-body">
+                    <div id="circuit-breakers" class="circuit-list">
+                        <div class="empty-state">No circuits</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Job Submission Panel -->
+            <section class="panel job-panel">
+                <div class="panel-header">
+                    <h2>Submit Job</h2>
+                </div>
+                <div class="panel-body">
+                    <div class="form-section">
+                        <label for="job-data" class="form-label">Job Payload</label>
+                        <div class="input-wrapper">
+                            <textarea id="job-data" class="form-input" placeholder="[1, 2, 3, 4, 5]"></textarea>
+                        </div>
+                        <button id="submit-job" class="btn btn-accent">Dispatch Job</button>
+                    </div>
+                    <div class="output-section">
+                        <div class="output-header">
+                            <span>Results</span>
+                            <button id="clear-output" class="btn-small">Clear</button>
+                        </div>
+                        <pre id="job-results" class="terminal">Ready...</pre>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="/dashboard-client.js"></script>
+</body>
+</html>
