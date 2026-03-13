@@ -11,24 +11,31 @@ export class Scheduler {
   }
 
   getNextNode(): string | null {
-    const nodesByLoad = this.getHealthyNodesByLoad();
+    var nodesByLoad = this.getHealthyNodesByLoad();
     if (nodesByLoad.length === 0) return null;
     return nodesByLoad[0].id;
   }
 
   getNextNodeForClient(clientId: string): string | null {
-    const preferredWorker = this.clientAffinityMap.get(clientId);
+    var preferredWorker = this.clientAffinityMap.get(clientId);
     if (preferredWorker) {
-      const healthyNodes = this.failureDetector.getHealthyNodes();
-      const circuitState = this.circuitBreakerState.get(preferredWorker);
-      if (healthyNodes.includes(preferredWorker) && (!circuitState || circuitState.state !== 'OPEN')) {
+      var healthyNodes = this.failureDetector.getHealthyNodes();
+      var circuitState = this.circuitBreakerState.get(preferredWorker);
+      var isHealthy = false;
+      for (let i = 0; i < healthyNodes.length; i++) {
+        if (healthyNodes[i] === preferredWorker) {
+          isHealthy = true;
+          break;
+        }
+      }
+      if (isHealthy && (!circuitState || circuitState.state !== 'OPEN')) {
         return preferredWorker;
       } else {
         this.clientAffinityMap.delete(clientId);
       }
     }
     
-    const nextNode = this.getNextNode();
+    var nextNode = this.getNextNode();
     if (nextNode) {
       this.clientAffinityMap.set(clientId, nextNode);
     }
@@ -44,11 +51,16 @@ export class Scheduler {
   }
 
   getHealthyNodesByLoad(): Array<{ id: string; load: number }> {
-    const allHealthyNodes = this.failureDetector.getHealthyNodesByLoad();
-    return allHealthyNodes.filter(node => {
-      const circuitState = this.circuitBreakerState.get(node.id);
-      return !circuitState || circuitState.state !== 'OPEN';
-    });
+    var allHealthyNodes = this.failureDetector.getHealthyNodesByLoad();
+    var ret = [];
+    for (var i = 0; i < allHealthyNodes.length; i++) {
+      var node = allHealthyNodes[i];
+      var circuitState = this.circuitBreakerState.get(node.id);
+      if (!circuitState || circuitState.state !== 'OPEN') {
+        ret.push(node);
+      }
+    }
+    return ret;
   }
 
   setCircuitBreakerState(state: Map<string, CircuitBreakerStatus>) {

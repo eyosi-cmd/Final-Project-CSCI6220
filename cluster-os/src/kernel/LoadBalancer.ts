@@ -18,22 +18,23 @@ class Dispatcher extends EventEmitter {
     this.messageQueueByPriority.set('NORMAL', []);
     this.messageQueueByPriority.set('LOW', []);
 
-    this.transport.setMessageHandler((id: string, message: ClusterMessage) => {
-      const priority = message.priority || 'NORMAL';
-      this.messageQueueByPriority.get(priority)!.push({ id, message });
+    this.transport.setMessageHandler(function(id, message) {
+      var priority = message.priority || 'NORMAL';
+      this.messageQueueByPriority.get(priority)!.push({ id: id, message: message });
       this.emit('messageQueued');
-    });
+    }.bind(this));
 
-    this.transport.setConnectionClosureHandler((id: string) => {
+    this.transport.setConnectionClosureHandler(function(id) {
       this.emit('connectionClosed', id);
-    });
+    }.bind(this));
   }
 
-  dequeueMessage(): { id: string; message: ClusterMessage } | null {
-    const priorityOrder = ['HIGH', 'NORMAL', 'LOW'];
-    for (const priority of priorityOrder) {
-      const queue = this.messageQueueByPriority.get(priority)!;
-      if (queue.length > 0) {
+  dequeueMessage()  {
+    var priorityOrder = ['HIGH', 'NORMAL', 'LOW'];
+    for (var i = 0; i < priorityOrder.length; i++) {
+      var priority = priorityOrder[i];
+      var queue = this.messageQueueByPriority.get(priority);
+      if (queue && queue.length > 0) {
         return queue.shift() || null;
       }
     }
@@ -41,8 +42,9 @@ class Dispatcher extends EventEmitter {
   }
 
   getQueueSize(): number {
-    let total = 0;
-    for (const queue of this.messageQueueByPriority.values()) {
+    var total = 0;
+    var queues = this.messageQueueByPriority.values();
+    for (var queue of queues) {
       total += queue.length;
     }
     return total;
@@ -89,12 +91,13 @@ class Worker {
   }
 
   start() {
-    const processNextMessage = async () => {
-      if (!this.running) return;
+    var self = this;
+    var processNextMessage = function() {
+      if (!self.running) return;
 
-      const queued = this.dispatcher.dequeueMessage();
+      var queued = self.dispatcher.dequeueMessage();
       if (queued) {
-        await this.processMessage(queued.id, queued.message);
+        self.processMessage(queued.id, queued.message);
       }
 
       setImmediate(processNextMessage);
@@ -102,12 +105,13 @@ class Worker {
 
     processNextMessage();
 
-    setInterval(() => {
-      this.scheduler.setCircuitBreakerState(this.circuitBreakerState);
+    var self = this;
+    setInterval(function() {
+      self.scheduler.setCircuitBreakerState(self.circuitBreakerState);
     }, 1000);
   }
 
-  private async processMessage(id: string, message: ClusterMessage) {
+  private processMessage(id: string, message: ClusterMessage) {
     this.nodeConnections.set(id, true);
 
     if (message.type === 'HEARTBEAT') {
@@ -117,19 +121,19 @@ class Worker {
     } else if (message.type === 'SUB_JOB_RESULT') {
       this.handleSubJobResult(id, message);
     } else if (message.type === 'CLUSTER_STATUS') {
-      const healthyNodes = this.failureDetector.getHealthyNodes();
-      const reply: ClusterMessage = {
-        type: 'CLUSTER_STATUS_REPLY',
+      var healthyNodes = this.failureDetector.getHealthyNodes();
+      var reply = {
+        type: 'CLUSTER_STATUS_REPLY' as any,
         senderId: 'load-balancer',
         requestId: message.requestId,
         payload: healthyNodes,
         priority: 'HIGH'
-      };
+      } as ClusterMessage;
       this.dispatcher.send(id, reply);
-      console.log(`[Worker-${this.id}] Sent cluster status to client ${id}: ${healthyNodes.length} healthy nodes`);
+      console.log('[Worker-' + this.id + '] Sent cluster status to client: ' + healthyNodes.length + ' healthy nodes');
     } else if (message.type === 'JOB_RESULT') {
-      const clientId = this.requestToClient.get(message.requestId);
-      const jobContext = this.jobContextMap.get(message.requestId);
+      var clientId = this.requestToClient.get(message.requestId);
+      var jobContext = this.jobContextMap.get(message.requestId);
       
       if (jobContext && jobContext.assignedWorker) {
         this.recordWorkerSuccess(jobContext.assignedWorker);
@@ -137,50 +141,52 @@ class Worker {
       
       if (clientId && this.nodeConnections.get(clientId)) {
         this.dispatcher.send(clientId, message);
-        console.log(`[Worker-${this.id}] Delivered result for job ${message.requestId} to client ${clientId}`);
+        console.log('[Worker-' + this.id + '] Delivered result for job ' + message.requestId + ' to client ' + clientId);
         this.requestToClient.delete(message.requestId);
         this.clearJobTimeout(message.requestId);
         this.jobContextMap.delete(message.requestId);
       } else {
-        console.log(`[Worker-${this.id}] Client ${clientId} no longer connected for job ${message.requestId}`);
+        console.log('[Worker-' + this.id + '] Client ' + clientId + ' no longer connected for job ' + message.requestId);
       }
     }
   }
 
   private handleJobSubmit(clientId: string, message: ClusterMessage) {
-    const { payload } = message;
-    const maxRetries = message.maxRetries || 3;
-    const retryCount = (message.retryCount || 0);
-    const timeoutMs = 10000;
+    var payload = message.payload;
+    var maxRetries = message.maxRetries || 3;
+    var retryCount = (message.retryCount || 0);
+    var timeoutMs = 10000;
 
-    const jobContext: JobContext = {
+    var jobContext = {
       requestId: message.requestId,
-      clientId,
-      message,
+      clientId: clientId,
+      message: message,
       submittedAt: Date.now(),
-      timeoutMs,
-      retryCount,
-      maxRetries
-    };
+      timeoutMs: timeoutMs,
+      retryCount: retryCount,
+      maxRetries: maxRetries,
+      assignedWorker: ''
+    } as JobContext;
     this.jobContextMap.set(message.requestId, jobContext);
 
-    const timeoutHandle = setTimeout(() => {
-      console.log(`[Worker-${this.id}] Job ${message.requestId} timed out after ${timeoutMs}ms`);
-      this.handleJobTimeout(jobContext);
+    var self = this;
+    var timeoutHandle = setTimeout(function() {
+      console.log('[Worker-' + self.id + '] Job ' + message.requestId + ' timed out after ' + timeoutMs + 'ms');
+      self.handleJobTimeout(jobContext);
     }, timeoutMs);
     this.jobTimeouts.set(message.requestId, timeoutHandle);
 
     if (Array.isArray(payload)) {
       this.splitAndDispatchJob(clientId, message);
     } else {
-      const workerId = this.scheduler.getNextNodeForClient(clientId) || this.scheduler.getNextNode();
+      var workerId = this.scheduler.getNextNodeForClient(clientId) || this.scheduler.getNextNode();
       if (workerId) {
         jobContext.assignedWorker = workerId;
         this.requestToClient.set(message.requestId, clientId);
         this.dispatcher.send(workerId, message);
-        console.log(`[Worker-${this.id}] Routed job ${message.requestId} to worker ${workerId}`);
+        console.log('[Worker-' + this.id + '] Routed job ' + message.requestId + ' to worker ' + workerId);
       } else {
-        console.log(`[Worker-${this.id}] No healthy workers available for job ${message.requestId}`);
+        console.log('[Worker-' + this.id + '] No healthy workers available for job ' + message.requestId);
       }
     }
   }
@@ -192,44 +198,48 @@ class Worker {
 
     if (jobContext.retryCount < jobContext.maxRetries) {
       jobContext.retryCount++;
-      const retryMessage: ClusterMessage = {
-        ...jobContext.message,
+      var retryMessage = {
+        type: jobContext.message.type,
+        senderId: jobContext.message.senderId,
+        requestId: jobContext.message.requestId,
+        payload: jobContext.message.payload,
         retryCount: jobContext.retryCount,
         maxRetries: jobContext.maxRetries
       };
 
-      const workerId = this.scheduler.getNextNode();
+      var workerId = this.scheduler.getNextNode();
       if (workerId) {
-        console.log(`[Worker-${this.id}] Retrying job ${jobContext.requestId} (attempt ${jobContext.retryCount}/${jobContext.maxRetries}) on worker ${workerId}`);
+        console.log('[Worker-' + this.id + '] Retrying job ' + jobContext.requestId + ' (attempt ' + jobContext.retryCount + '/' + jobContext.maxRetries + ') on worker ' + workerId);
         jobContext.assignedWorker = workerId;
         this.dispatcher.send(workerId, retryMessage);
 
-        const timeoutHandle = setTimeout(() => {
-          console.log(`[Worker-${this.id}] Retry job ${jobContext.requestId} timed out`);
-          this.handleJobTimeout(jobContext);
+        var self = this;
+        var timeoutHandle = setTimeout(function() {
+          console.log('[Worker-' + self.id + '] Retry job ' + jobContext.requestId + ' timed out');
+          self.handleJobTimeout(jobContext);
         }, jobContext.timeoutMs);
         this.jobTimeouts.set(jobContext.requestId, timeoutHandle);
       } else {
-        console.log(`[Worker-${this.id}] No workers available for retry of job ${jobContext.requestId}`);
+        console.log('[Worker-' + this.id + '] No workers available for retry of job ' + jobContext.requestId);
         this.sendFailureResultToClient(jobContext);
       }
     } else {
-      console.log(`[Worker-${this.id}] Job ${jobContext.requestId} exceeded max retries`);
+      console.log('[Worker-' + this.id + '] Job ' + jobContext.requestId + ' exceeded max retries');
       this.sendFailureResultToClient(jobContext);
     }
   }
 
   private sendFailureResultToClient(jobContext: JobContext) {
-    const clientId = this.requestToClient.get(jobContext.requestId);
+    var clientId = this.requestToClient.get(jobContext.requestId);
     if (clientId && this.nodeConnections.get(clientId)) {
-      const failureResult: ClusterMessage = {
-        type: 'JOB_RESULT',
+      var failureResult = {
+        type: 'JOB_RESULT' as any,
         senderId: 'load-balancer',
         requestId: jobContext.requestId,
         payload: { error: 'Job failed after maximum retries', retryCount: jobContext.retryCount }
-      };
+      } as ClusterMessage;
       this.dispatcher.send(clientId, failureResult);
-      console.log(`[Worker-${this.id}] Sent failure result for job ${jobContext.requestId} to client ${clientId}`);
+      console.log('[Worker-' + this.id + '] Sent failure result for job ' + jobContext.requestId + ' to client ' + clientId);
     }
 
     this.requestToClient.delete(jobContext.requestId);
@@ -238,7 +248,7 @@ class Worker {
   }
 
   private clearJobTimeout(requestId: string) {
-    const timeoutHandle = this.jobTimeouts.get(requestId);
+    var timeoutHandle = this.jobTimeouts.get(requestId);
     if (timeoutHandle) {
       clearTimeout(timeoutHandle);
       this.jobTimeouts.delete(requestId);
@@ -246,17 +256,17 @@ class Worker {
   }
 
   private splitAndDispatchJob(clientId: string, message: ClusterMessage) {
-    const data: any[] = message.payload;
-    const healthyNodes = this.scheduler.getHealthyNodesByLoad();
+    var data = message.payload;
+    var healthyNodes = this.scheduler.getHealthyNodesByLoad();
 
     if (healthyNodes.length === 0) {
-      console.log(`[Worker-${this.id}] No healthy workers available for job ${message.requestId}`);
+      console.log('No healthy workers');
       return;
     }
 
-    const chunkSize = Math.ceil(data.length / healthyNodes.length);
-    const chunks: any[][] = [];
-    for (let i = 0; i < data.length; i += chunkSize) {
+    var chunkSize = Math.ceil(data.length / healthyNodes.length);
+    var chunks = [];
+    for (var i = 0; i < data.length; i += chunkSize) {
       chunks.push(data.slice(i, i + chunkSize));
     }
 
@@ -267,19 +277,20 @@ class Worker {
     });
     this.requestToClient.set(message.requestId, clientId);
 
-    chunks.forEach((chunk, index) => {
-      const worker = healthyNodes[index % healthyNodes.length];
-      const subMessage: ClusterMessage = {
-        type: 'SUB_JOB_SUBMIT',
+    for (var index = 0; index < chunks.length; index++) {
+      var chunk = chunks[index];
+      var worker = healthyNodes[index % healthyNodes.length];
+      var subMessage = {
+        type: 'SUB_JOB_SUBMIT' as any,
         senderId: message.senderId,
-        requestId: `${message.requestId}-chunk-${index}`,
+        requestId: message.requestId + '-chunk-' + index,
         payload: chunk,
         retryCount: message.retryCount || 0,
         maxRetries: message.maxRetries || 3
-      };
+      } as ClusterMessage;
       this.dispatcher.send(worker.id, subMessage);
-      console.log(`[Worker-${this.id}] Dispatched chunk ${index} of job ${message.requestId} to worker ${worker.id}`);
-    });
+      console.log('Dispatched chunk');
+    }
   }
 
   // Expose active job counts for metrics
@@ -288,10 +299,15 @@ class Worker {
   }
 
   // Expose circuit breaker states summary
-  public getCircuitBreakerStates(): { [workerId: string]: string } {
-    const out: { [workerId: string]: string } = {};
-    for (const [wid, state] of this.circuitBreakerState.entries()) {
+  public getCircuitBreakerStates() {
+    var out = {} as any;
+    var entries = this.circuitBreakerState.entries();
+    var entry = entries.next();
+    while (!entry.done) {
+      var wid = entry.value[0];
+      var state = entry.value[1];
       out[wid] = state.state;
+      entry = entries.next();
     }
     return out;
   }
@@ -299,30 +315,32 @@ class Worker {
   private handleSubJobResult(workerId: string, message: ClusterMessage) {
     this.recordWorkerSuccess(workerId);
     
-    const baseRequestId = message.requestId.split('-chunk-')[0];
-    const aggregation = this.aggregationMap.get(baseRequestId);
+    var baseRequestId = message.requestId.split('-chunk-')[0];
+    var aggregation = this.aggregationMap.get(baseRequestId);
 
     if (!aggregation) {
-      console.log(`[Worker-${this.id}] No aggregation record for ${baseRequestId}`);
+      console.log('[Worker-' + this.id + '] No aggregation record for ' + baseRequestId);
       return;
     }
 
-    aggregation.aggregatedData.push(...message.payload);
+    for (var i = 0; i < message.payload.length; i++) {
+      aggregation.aggregatedData.push(message.payload[i]);
+    }
     aggregation.receivedChunks++;
 
-    console.log(`[Worker-${this.id}] Received chunk ${aggregation.receivedChunks}/${aggregation.totalChunks} for job ${baseRequestId}`);
+    console.log('[Worker-' + this.id + '] Received chunk ' + aggregation.receivedChunks + '/' + aggregation.totalChunks + ' for job ' + baseRequestId);
 
     if (aggregation.receivedChunks === aggregation.totalChunks) {
-      const clientId = this.requestToClient.get(baseRequestId);
+      var clientId = this.requestToClient.get(baseRequestId);
       if (clientId && this.nodeConnections.get(clientId)) {
-        const finalResult: ClusterMessage = {
-          type: 'JOB_RESULT',
+        var finalResult = {
+          type: 'JOB_RESULT' as any,
           senderId: 'load-balancer',
           requestId: baseRequestId,
           payload: aggregation.aggregatedData
-        };
+        } as ClusterMessage;
         this.dispatcher.send(clientId, finalResult);
-        console.log(`[Worker-${this.id}] Delivered aggregated result for job ${baseRequestId} to client ${clientId}`);
+        console.log('[Worker-' + this.id + '] Delivered aggregated result for job ' + baseRequestId + ' to client ' + clientId);
       }
 
       this.aggregationMap.delete(baseRequestId);
@@ -335,7 +353,7 @@ class Worker {
   private recordWorkerSuccess(workerId: string) {
     if (!this.circuitBreakerState.has(workerId)) {
       this.circuitBreakerState.set(workerId, {
-        workerId,
+        workerId: workerId,
         state: 'CLOSED',
         consecutiveFailures: 0,
         lastFailureTime: 0,
@@ -344,14 +362,14 @@ class Worker {
       });
     }
 
-    const state = this.circuitBreakerState.get(workerId)!;
+    var state = this.circuitBreakerState.get(workerId) as any;
     if (state.state === 'HALF_OPEN') {
       state.probeAttempts++;
       if (state.probeAttempts >= this.circuitBreakerConfig.successThreshold) {
         state.state = 'CLOSED';
         state.consecutiveFailures = 0;
         state.probeAttempts = 0;
-        console.log(`[Worker-${this.id}] Circuit breaker for ${workerId} transitioned to CLOSED`);
+        console.log('[Worker-' + this.id + '] Circuit breaker for ' + workerId + ' transitioned to CLOSED');
       }
     } else if (state.state === 'CLOSED') {
       state.consecutiveFailures = 0;
@@ -362,7 +380,7 @@ class Worker {
   private recordWorkerFailure(workerId: string) {
     if (!this.circuitBreakerState.has(workerId)) {
       this.circuitBreakerState.set(workerId, {
-        workerId,
+        workerId: workerId,
         state: 'CLOSED',
         consecutiveFailures: 0,
         lastFailureTime: Date.now(),
@@ -371,33 +389,33 @@ class Worker {
       });
     }
 
-    const state = this.circuitBreakerState.get(workerId)!;
+    var state = this.circuitBreakerState.get(workerId) as any;
     state.lastFailureTime = Date.now();
 
     if (state.state === 'HALF_OPEN') {
       state.state = 'OPEN';
       state.consecutiveFailures = 0;
       state.probeAttempts = 0;
-      console.log(`[Worker-${this.id}] Circuit breaker for ${workerId} transitioned to OPEN (probe failed)`);
+      console.log('[Worker-' + this.id + '] Circuit breaker for ' + workerId + ' transitioned to OPEN (probe failed)');
     } else if (state.state === 'CLOSED') {
       state.consecutiveFailures++;
       if (state.consecutiveFailures >= this.circuitBreakerConfig.failureThreshold) {
         state.state = 'OPEN';
-        console.log(`[Worker-${this.id}] Circuit breaker for ${workerId} transitioned to OPEN (${state.consecutiveFailures} failures)`);
+        console.log('[Worker-' + this.id + '] Circuit breaker for ' + workerId + ' transitioned to OPEN (' + state.consecutiveFailures + ' failures)');
       }
     }
   }
 
-  private getCircuitBreakerState(workerId: string): 'CLOSED' | 'OPEN' | 'HALF_OPEN' {
-    const state = this.circuitBreakerState.get(workerId);
+  private getCircuitBreakerState(workerId: string) {
+    var state = this.circuitBreakerState.get(workerId);
     if (!state) return 'CLOSED';
 
     if (state.state === 'OPEN') {
-      const timeSinceOpen = Date.now() - state.lastFailureTime;
+      var timeSinceOpen = Date.now() - state.lastFailureTime;
       if (timeSinceOpen >= this.circuitBreakerConfig.openTimeout) {
         state.state = 'HALF_OPEN';
         state.probeAttempts = 0;
-        console.log(`[Worker-${this.id}] Circuit breaker for ${workerId} transitioned to HALF_OPEN`);
+        console.log('[Worker-' + this.id + '] Circuit breaker for ' + workerId + ' transitioned to HALF_OPEN');
       }
     }
 
@@ -406,16 +424,14 @@ class Worker {
 
   stop() {
     this.running = false;
-    for (const timeoutHandle of this.jobTimeouts.values()) {
-      clearTimeout(timeoutHandle);
+    var handles = this.jobTimeouts.values();
+    for (var handle of handles) {
+      clearTimeout(handle);
     }
   }
 }
 
-/**
- * LoadBalancer now acts as an orchestrator using the Dispatcher/Worker pattern.
- * It maintains a Dispatcher listening on a port and a pool of Workers processing messages.
- */
+// main LB class
 class LoadBalancer {
   private dispatcher: Dispatcher;
   private failureDetector: FailureDetector;
@@ -442,152 +458,151 @@ class LoadBalancer {
     this.registerWithDNS(dnsHost, dnsRegistrationPort);
   }
 
-  /**
-   * Registers this LoadBalancer instance with the DNS Router.
-   */
   private registerWithDNS(dnsHost: string, dnsPort: number) {
+    var self = this;
     try {
-      this.dnsSocket = net.createConnection({ host: dnsHost, port: dnsPort }, () => {
-        console.log(`[LoadBalancer] Connected to DNSRouter for registration`);
+      this.dnsSocket = net.createConnection({ host: dnsHost, port: dnsPort }, function() {
+        console.log('[LoadBalancer] Connected to DNSRouter for registration');
         
-        const registerMessage: ClusterMessage = {
+        var registerMessage = {
           type: 'REGISTER_LB',
-          senderId: this.lbId,
-          requestId: `register-${Date.now()}`,
+          senderId: self.lbId,
+          requestId: 'register-' + Date.now(),
           payload: {
-            lbId: this.lbId,
+            lbId: self.lbId,
             host: 'localhost',
-            port: this.lbPort
+            port: self.lbPort
           }
         };
         
-        this.dnsSocket!.write(JSON.stringify(registerMessage) + '\n');
+        self.dnsSocket.write(JSON.stringify(registerMessage) + '\n');
       });
 
-      let buffer = '';
-      this.dnsSocket.on('data', (data) => {
+      var buffer = '';
+      this.dnsSocket.on('data', function(data) {
         buffer += data.toString();
-        const lines = buffer.split('\n');
+        var lines = buffer.split('\n');
         buffer = lines.pop() || '';
 
-        for (const line of lines) {
+        for (var j = 0; j < lines.length; j++) {
+          var line = lines[j];
           if (line.trim().length === 0) continue;
           
           try {
-            const response: ClusterMessage = JSON.parse(line);
+            var response = JSON.parse(line);
             if (response.type === 'REGISTER_LB_ACK') {
-              const { success, lbId } = response.payload;
+              var success = response.payload.success;
+              var lbId = response.payload.lbId;
               if (success) {
-                console.log(`[LoadBalancer] Successfully registered with DNSRouter as ${lbId}`);
-                this.dnsRegistered = true;
+                console.log('[LoadBalancer] Successfully registered with DNSRouter as ' + lbId);
+                self.dnsRegistered = true;
               } else {
-                console.error(`[LoadBalancer] Failed to register with DNSRouter:`, response.payload.error);
+                console.error('[LoadBalancer] Failed to register with DNSRouter:', response.payload.error);
               }
             }
           } catch (err) {
-            console.error(`[LoadBalancer] Error parsing DNS response:`, err);
+            console.error('[LoadBalancer] Error parsing DNS response:', err);
           }
         }
       });
 
-      this.dnsSocket.on('error', (err) => {
-        console.error(`[LoadBalancer] DNS registration connection error:`, err);
-        this.dnsSocket = null;
+      this.dnsSocket.on('error', function(err) {
+        console.error('[LoadBalancer] DNS registration connection error:', err);
+        self.dnsSocket = null;
         
-        // Retry registration after a delay
-        console.log(`[LoadBalancer] Retrying DNS registration in 5 seconds...`);
-        setTimeout(() => {
-          this.registerWithDNS(dnsHost, dnsPort);
+        console.log('[LoadBalancer] Retrying DNS registration in 5 seconds...');
+        setTimeout(function() {
+          self.registerWithDNS(dnsHost, dnsPort);
         }, 5000);
       });
 
-      this.dnsSocket.on('close', () => {
-        console.log(`[LoadBalancer] DNS registration connection closed`);
-        this.dnsSocket = null;
-        this.dnsRegistered = false;
+      this.dnsSocket.on('close', function() {
+        console.log('[LoadBalancer] DNS registration connection closed');
+        self.dnsSocket = null;
+        self.dnsRegistered = false;
       });
     } catch (err) {
-      console.error(`[LoadBalancer] Failed to connect to DNSRouter:`, err);
-      console.log(`[LoadBalancer] Retrying DNS registration in 5 seconds...`);
-      setTimeout(() => {
-        this.registerWithDNS(dnsHost, dnsPort);
+      console.error('[LoadBalancer] Failed to connect to DNSRouter:', err);
+      console.log('[LoadBalancer] Retrying DNS registration in 5 seconds...');
+      setTimeout(function() {
+        self.registerWithDNS(dnsHost, dnsPort);
       }, 5000);
     }
   }
 
-  /**
-   * Deregisters this LoadBalancer instance with the DNS Router.
-   */
   private deregisterFromDNS() {
     if (this.dnsSocket && this.dnsRegistered) {
-      const deregisterMessage: ClusterMessage = {
+      var deregisterMessage = {
         type: 'DEREGISTER_LB',
         senderId: this.lbId,
-        requestId: `deregister-${Date.now()}`,
+        requestId: 'deregister-' + Date.now(),
         payload: {
           lbId: this.lbId
         }
       };
       
       this.dnsSocket.write(JSON.stringify(deregisterMessage) + '\n');
-      console.log(`[LoadBalancer] Deregistration request sent to DNSRouter`);
+      console.log('[LoadBalancer] Deregistration request sent to DNSRouter');
       
-      // Close the connection after a delay to allow the message to be processed
-      setTimeout(() => {
-        if (this.dnsSocket) {
-          this.dnsSocket.end();
-          this.dnsSocket = null;
+      var self = this;
+      setTimeout(function() {
+        if (self.dnsSocket) {
+          self.dnsSocket.end();
+          self.dnsSocket = null;
         }
       }, 500);
     }
   }
 
-  /**
-   * Initializes the worker pool.
-   */
   private initializeWorkerPool() {
-    for (let i = 0; i < this.workerPoolSize; i++) {
-      const worker = new Worker(i, this.dispatcher, this.failureDetector, this.scheduler);
+    for (var i = 0; i < this.workerPoolSize; i++) {
+      var worker = new Worker(i, this.dispatcher, this.failureDetector, this.scheduler);
       worker.start();
       this.workers.push(worker);
     }
-    console.log(`[LoadBalancer] Initialized worker pool with ${this.workerPoolSize} workers`);
+    console.log('[LoadBalancer] Initialized worker pool with ' + this.workerPoolSize + ' workers');
   }
 
-  /**
-   * Monitors cluster health and displays status.
-   */
+  // check cluster
   private monitorClusterHealth() {
-    setInterval(() => {
-      const healthy = this.failureDetector.getHealthyNodes();
-      const queueSize = this.dispatcher.getQueueSize();
-      const healthStr = `[LoadBalancer] Healthy workers: ${healthy.length} | Queue: ${queueSize}`;
-      const paddedHealth = healthStr.padEnd(66);
-      console.log(`||  ${paddedHealth}||`);
+    var self = this;
+    setInterval(function() {
+      var healthy = self.failureDetector.getHealthyNodes();
+      var queueSize = self.dispatcher.getQueueSize();
+      var healthStr = '[LoadBalancer] Healthy workers: ' + healthy.length + ' | Queue: ' + queueSize;
+      var paddedHealth = healthStr.padEnd(66);
+      console.log('||  ' + paddedHealth + '||');
     }, 1000);
   }
 
   private startMetricsServer() {
-    const server = http.createServer((req, res) => {
+    var self = this;
+    var server = http.createServer(function(req, res) {
       res.setHeader('Access-Control-Allow-Origin', '*');
       res.setHeader('Content-Type', 'application/json');
 
       if (req.url === '/metrics') {
-        // Aggregate active jobs and circuit breaker states from workers
-        const activeJobs = this.workers.reduce((acc, w) => acc + (w as any).getActiveJobsCount(), 0);
-        const circuitBreakerStates: { [k: string]: string } = {};
-        for (const w of this.workers) {
+        var activeJobs = 0;
+        for (var i = 0; i < self.workers.length; i++) {
+          activeJobs += (self.workers[i] as any).getActiveJobsCount();
+        }
+        var circuitBreakerStates = {};
+        for (var i = 0; i < self.workers.length; i++) {
+          var w = self.workers[i];
           if (typeof (w as any).getCircuitBreakerStates === 'function') {
-            Object.assign(circuitBreakerStates, (w as any).getCircuitBreakerStates());
+            var states = (w as any).getCircuitBreakerStates();
+            for (var key in states) {
+              circuitBreakerStates[key] = states[key];
+            }
           }
         }
 
-        const metrics = {
-          healthyWorkers: this.failureDetector.getHealthyNodes().length,
-          totalWorkers: this.workerPoolSize,
-          activeJobs,
-          queuedJobs: this.dispatcher.getQueueSize(),
-          circuitBreakerStates,
+        var metrics = {
+          healthyWorkers: self.failureDetector.getHealthyNodes().length,
+          totalWorkers: self.workerPoolSize,
+          activeJobs: activeJobs,
+          queuedJobs: self.dispatcher.getQueueSize(),
+          circuitBreakerStates: circuitBreakerStates,
           timestamp: Date.now()
         };
         res.writeHead(200);
@@ -598,25 +613,23 @@ class LoadBalancer {
       }
     });
 
-    server.listen(9001, () => {
+    server.listen(9001, function() {
       console.log('[LoadBalancer] Metrics server listening on port 9001');
     });
   }
 
-  /**
-   * Gracefully shuts down the LoadBalancer.
-   */
   shutdown() {
     console.log('[LoadBalancer] Initiating graceful shutdown...');
     this.deregisterFromDNS();
-    this.workers.forEach(w => w.stop());
+    for (var i = 0; i < this.workers.length; i++) {
+      this.workers[i].stop();
+    }
     console.log('[LoadBalancer] Shutdown completed');
   }
 }
 
-// Initialize the Load Balancer with 4 workers processing messages asynchronously
-// Default: LB listens on port 3010, DNS Router registration on port 3000
-const lb = new LoadBalancer(3010, 4, 'localhost', 3000);
+// start lb
+var lb = new LoadBalancer(3010, 4, 'localhost', 3000);
 
 console.clear();
 console.log('_______________________________________________');
@@ -626,6 +639,6 @@ console.log('||  DNS Router: localhost:3000 (Registration)     ||');
 console.log('||  [LoadBalancer] Healthy workers: 0             ||');
 console.log('__________________________________________________');
 
-// Graceful shutdown on signals
-process.on('SIGTERM', () => lb.shutdown());
-process.on('SIGINT', () => lb.shutdown());
+// graceful shutdown on signals
+process.on('SIGTERM', function() { lb.shutdown(); });
+process.on('SIGINT', function() { lb.shutdown(); });

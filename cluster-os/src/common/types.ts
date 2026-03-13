@@ -1,7 +1,4 @@
-/**
- * ClusterMessage defines the structure of messages exchanged in the distributed system.
- * It supports heterogeneity by allowing flexible payloads and includes metadata for routing.
- */
+// message type
 export interface ClusterMessage {
   type: 'HEARTBEAT' | 'JOB_SUBMIT' | 'JOB_RESULT' | 'SUB_JOB_SUBMIT' | 'SUB_JOB_RESULT' | 'CLUSTER_STATUS' | 'CLUSTER_STATUS_REPLY' | 'REGISTER_LB' | 'DEREGISTER_LB' | 'REGISTER_LB_ACK';
   senderId: string;
@@ -13,16 +10,12 @@ export interface ClusterMessage {
   clientAffinityHint?: string;
 }
 
-/**
- * Heartbeat payload includes load information for scheduling decisions.
- */
+// heartbeat
 export interface HeartbeatPayload {
   activeJobs: number;
 }
 
-/**
- * LoadBalancer registry entry for DNS routing.
- */
+// registry
 export interface LoadBalancerRegistry {
   host: string;
   port: number;

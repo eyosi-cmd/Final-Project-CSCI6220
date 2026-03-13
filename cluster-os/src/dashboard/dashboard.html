@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ClusterOS Dashboard</title>
     <link rel="stylesheet" href="dashboard.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
 </head>
 <body>
     <div class="dashboard-container">
@@ -13,17 +12,7 @@
         <header class="header">
             <div class="header-content">
                 <div class="logo-section">
-                    <div class="logo-icon">⚙</div>
-                    <div>
-                        <h1>ClusterOS</h1>
-                        <p class="subtitle">Distributed Cluster Management System</p>
-                    </div>
-                </div>
-                <div class="header-status">
-                    <div class="status-indicator" id="system-status">
-                        <span class="status-dot"></span>
-                        <span class="status-text">Offline</span>
-                    </div>
+                    <h1>ClusterOS</h1>
                 </div>
             </div>
         </header>
@@ -39,27 +28,15 @@
                     <div class="control-section">
                         <h3>Load Balancer</h3>
                         <div class="button-row">
-                            <button id="start-lb" class="btn btn-success" data-action="start-lb">
-                                <span class="btn-icon">▶</span>
-                                <span class="btn-text">Start LB</span>
-                            </button>
-                            <button id="stop-lb" class="btn btn-danger" data-action="stop-lb">
-                                <span class="btn-icon">⏹</span>
-                                <span class="btn-text">Stop LB</span>
-                            </button>
+                            <button id="start-lb" class="btn btn-success" data-action="start-lb">Start LB</button>
+                            <button id="stop-lb" class="btn btn-danger" data-action="stop-lb">Stop LB</button>
                         </div>
                     </div>
                     <div class="control-section">
                         <h3>Workers</h3>
                         <div class="button-row">
-                            <button id="add-worker" class="btn btn-primary" data-action="add-worker">
-                                <span class="btn-icon">+</span>
-                                <span class="btn-text">Add Worker</span>
-                            </button>
-                            <button id="remove-worker" class="btn btn-warning" data-action="remove-worker">
-                                <span class="btn-icon">−</span>
-                                <span class="btn-text">Remove Worker</span>
-                            </button>
+                            <button id="add-worker" class="btn btn-primary" data-action="add-worker">Add Worker</button>
+                            <button id="remove-worker" class="btn btn-warning" data-action="remove-worker">Remove</button>
                         </div>
                     </div>
                 </div>
@@ -73,24 +50,24 @@
                 <div class="panel-body">
                     <div class="metrics-container">
                         <div class="metric-card">
-                            <div class="metric-header">Healthy Workers</div>
+                            <div class="metric-header">Healthy</div>
                             <div class="metric-value" id="metric-healthy">0</div>
-                            <div class="metric-subtext">operational</div>
+                            <div class="metric-subtext">workers</div>
                         </div>
                         <div class="metric-card">
-                            <div class="metric-header">Total Pool</div>
+                            <div class="metric-header">Total</div>
                             <div class="metric-value" id="metric-total">0</div>
-                            <div class="metric-subtext">nodes</div>
+                            <div class="metric-subtext">total</div>
                         </div>
                         <div class="metric-card">
-                            <div class="metric-header">Active Jobs</div>
+                            <div class="metric-header">Active</div>
                             <div class="metric-value" id="metric-active">0</div>
-                            <div class="metric-subtext">processing</div>
+                            <div class="metric-subtext">jobs</div>
                         </div>
                         <div class="metric-card">
                             <div class="metric-header">Queued</div>
                             <div class="metric-value" id="metric-queued">0</div>
-                            <div class="metric-subtext">pending</div>
+                            <div class="metric-subtext">jobs</div>
                         </div>
                     </div>
                 </div>
@@ -103,7 +80,7 @@
                 </div>
                 <div class="panel-body">
                     <div id="circuit-breakers" class="circuit-list">
-                        <div class="empty-state">No circuits active</div>
+                        <div class="empty-state">No circuits</div>
                     </div>
                 </div>
             </section>
@@ -115,31 +92,24 @@
                 </div>
                 <div class="panel-body">
                     <div class="form-section">
-                        <label for="job-data" class="form-label">Job Payload (JSON Array)</label>
+                        <label for="job-data" class="form-label">Job Payload</label>
                         <div class="input-wrapper">
-                            <textarea id="job-data" class="form-input" placeholder="[1, 2, 3, 4, 5]" spellcheck="false"></textarea>
+                            <textarea id="job-data" class="form-input" placeholder="[1, 2, 3, 4, 5]"></textarea>
                         </div>
-                        <button id="submit-job" class="btn btn-accent" style="width: 100%">
-                            <span class="btn-icon">►</span>
-                            <span class="btn-text">Dispatch Job</span>
-                        </button>
+                        <button id="submit-job" class="btn btn-accent">Dispatch Job</button>
                     </div>
                     <div class="output-section">
                         <div class="output-header">
-                            <span>Job Results</span>
+                            <span>Results</span>
                             <button id="clear-output" class="btn-small">Clear</button>
                         </div>
-                        <pre id="job-results" class="terminal">Ready to dispatch jobs...</pre>
+                        <pre id="job-results" class="terminal">Ready...</pre>
                     </div>
                 </div>
             </section>
         </main>
     </div>
 
-    <script>
-        // Inline client initialization
-        // Dashboard client code loads below
-    </script>
     <script src="/dashboard-client.js"></script>
 </body>
 </html>

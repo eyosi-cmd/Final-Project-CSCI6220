@@ -1,10 +1,7 @@
 import * as net from 'net';
 import { ClusterMessage } from '../common/types';
 
-/**
- * TCPTransport handles server-side TCP connections for the Load Balancer.
- * It manages multiple client connections, buffers incoming data, and parses JSON messages.
- */
+// TCP server
 export class TCPTransport {
   private server: net.Server;
   private clients: Map<string, net.Socket> = new Map();
@@ -12,78 +9,68 @@ export class TCPTransport {
   private closureHandler?: (id: string) => void;
 
   constructor(port: number) {
-    this.server = net.createServer((socket) => {
-      // Assign a unique ID to each connection
+    this.server = net.createServer(function(socket) {
+      // id for connection
       const id = this.generateId();
       this.clients.set(id, socket);
 
       let buffer = '';
 
-      socket.on('data', (data) => {
-        // Accumulate data in buffer
+      socket.on('data', function(data) {
         buffer += data.toString();
 
         let newlineIndex;
-        // Process complete messages (delimited by newline)
         while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
           const messageStr = buffer.slice(0, newlineIndex);
           buffer = buffer.slice(newlineIndex + 1);
 
           try {
-            const message: ClusterMessage = JSON.parse(messageStr);
+            const message = JSON.parse(messageStr);
             if (this.messageHandler) {
               this.messageHandler(id, message);
             }
           } catch (e) {
-            console.error('Failed to parse message:', e);
+            console.log('error');
           }
         }
-      });
+      }.bind(this));
 
-      socket.on('close', () => {
-        // Remove disconnected client
-        this.clients.delete(id);
-        // Notify the handler of the closure
-        if (this.closureHandler) {
-          this.closureHandler(id);
-        }
-      });
-
-      socket.on('error', (err) => {
-        console.error('Socket error:', err);
+      socket.on('close', function() {
         this.clients.delete(id);
         if (this.closureHandler) {
           this.closureHandler(id);
         }
-      });
-    });
+      }.bind(this));
 
-    this.server.listen(port, () => {
+      socket.on('error', function(err) {
+        console.log('socket error');
+        this.clients.delete(id);
+        if (this.closureHandler) {
+          this.closureHandler(id);
+        }
+      }.bind(this));
+    }.bind(this));
+
+    this.server.listen(port, function() {
       console.clear();
       console.log('_______________________________________________');
       console.log('________________  Load Balancer   _____________');
-      console.log(`||          Load Balancer listening on port ${port}   ||`);
+      console.log('||          Load Balancer listening on port ' + port + '   ||');
       console.log('__________________________________________________');
     });
   }
 
-  /**
-   * Sets the handler for incoming messages.
-   */
+  // set message handler
   setMessageHandler(handler: (id: string, message: ClusterMessage) => void) {
     this.messageHandler = handler;
   }
 
-  /**
-   * Sets the handler for connection closures.
-   */
+  // set closure handler
   setConnectionClosureHandler(handler: (id: string) => void) {
     this.closureHandler = handler;
   }
 
-  /**
-   * Sends a message to a specific client.
-   */
+  // send message
   send(id: string, message: ClusterMessage) {
     const socket = this.clients.get(id);
     if (socket) {
@@ -91,9 +78,7 @@ export class TCPTransport {
     }
   }
 
-  /**
-   * Gets the list of connected client IDs.
-   */
+  // get client ids
   getClientIds(): string[] {
     return Array.from(this.clients.keys());
   }
@@ -103,21 +88,18 @@ export class TCPTransport {
   }
 }
 
-/**
- * ClientTCPTransport handles client-side TCP connections for workers and users.
- * It connects to the Load Balancer and manages message sending/receiving.
- */
+// Client TCP
 export class ClientTCPTransport {
   private socket: net.Socket;
   private messageHandler?: (message: ClusterMessage) => void;
   private buffer = '';
 
   constructor(host: string, port: number) {
-    this.socket = net.createConnection({ host, port }, () => {
-      // Connection established - components will display their own messages
+    this.socket = net.createConnection({ host: host, port: port }, function() {
+      // connected
     });
 
-    this.socket.on('data', (data) => {
+    this.socket.on('data', function(data) {
       this.buffer += data.toString();
 
       let newlineIndex;
@@ -126,42 +108,36 @@ export class ClientTCPTransport {
         this.buffer = this.buffer.slice(newlineIndex + 1);
 
         try {
-          const message: ClusterMessage = JSON.parse(messageStr);
+          const message = JSON.parse(messageStr);
           if (this.messageHandler) {
             this.messageHandler(message);
           }
         } catch (e) {
-          console.error('Failed to parse message:', e);
+          console.log('error');
         }
       }
+    }.bind(this));
+
+    this.socket.on('close', function() {
+      console.log('disconnected');
     });
 
-    this.socket.on('close', () => {
-      console.log('Disconnected from Load Balancer');
-    });
-
-    this.socket.on('error', (err) => {
-      console.error('Connection error:', err);
+    this.socket.on('error', function(err) {
+      console.log('error');
     });
   }
 
-  /**
-   * Sets the handler for incoming messages.
-   */
+  // set handler
   setMessageHandler(handler: (message: ClusterMessage) => void) {
     this.messageHandler = handler;
   }
 
-  /**
-   * Sends a message to the server.
-   */
+  // send
   send(message: ClusterMessage) {
     this.socket.write(JSON.stringify(message) + '\n');
   }
 
-  /**
-   * Closes the connection.
-   */
+  // close
   close() {
     this.socket.end();
   }

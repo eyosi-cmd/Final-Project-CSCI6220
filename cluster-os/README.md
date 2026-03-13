@@ -141,39 +141,31 @@ cd cluster-os
 npm run start:dns
 ```
 
-**Terminal 2 (wait 1s): Start Load Balancer**
-```powershell
-cd cluster-os
+Terminal 2 (wait 1s):
+```
 npm run start:lb
 ```
 
-**Terminal 3 (wait 2s): Start Worker Node 1**
-```powershell
-cd cluster-os
+Terminal 3 (wait 2s):
+```
 npm run start:worker
 ```
 
-**Terminal 4 (wait 2s): Start Worker Node 2**
-```powershell
-cd cluster-os
+Terminal 4 (wait 2s):
+```
 npm run start:worker
 ```
 
-**Terminal 5 (wait 3s): Start Interactive Client**
-```powershell
-cd cluster-os
+Terminal 5 (wait 3s):
+```
 npm run start:client
 ```
 
-Then use commands in the client:
+Then type commands:
 ```
-ClusterOS > submit [1,2,3,4,5]
-Job Result: [2,4,6,8,10]
-
-ClusterOS > status
-Healthy workers: 2
-
-ClusterOS > exit
+submit [1,2,3,4,5]
+status
+exit
 ```
 
 ---

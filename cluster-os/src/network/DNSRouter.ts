@@ -15,95 +15,97 @@ class DNSRouter {
   constructor(port: number, registrationPort: number, loadBalancers: Array<{ host: string; port: number }>) {
     this.registrationPort = registrationPort;
     
-    // Initialize registry with seed loadbalancers
-    this.loadBalancerRegistry = loadBalancers.map((lb, idx) => ({
-      ...lb,
-      id: `LB-seed-${idx}`,
-      registered: Date.now()
-    }));
+    // init registry
+    var registry = [];
+    for (var i = 0; i < loadBalancers.length; i++) {
+      var lb = loadBalancers[i];
+      registry.push({
+        host: lb.host,
+        port: lb.port,
+        id: 'LB-seed-' + i,
+        registered: Date.now()
+      });
+    }
+    this.loadBalancerRegistry = registry;
 
-    // Populate the ID to address map for seed LBs
-    this.loadBalancerRegistry.forEach(lb => {
+    // populate map
+    for (var i = 0; i < this.loadBalancerRegistry.length; i++) {
+      var lb = this.loadBalancerRegistry[i];
       this.lbIdToAddress.set(lb.id, { host: lb.host, port: lb.port });
-    });
+    }
 
     this.setupClientRoutingServer(port);
     this.setupLoadBalancerRegistrationServer(registrationPort);
   }
 
   private setupClientRoutingServer(port: number) {
-    this.server = net.createServer((socket) => {
-      const clientId = this.generateId();
-      const serverId = this.generateServerIdForClient(clientId);
-      this.clientConnections.set(clientId, socket);
-      this.clientServerIdMap.set(clientId, serverId);
+    var self = this;
+    this.server = net.createServer(function(socket) {
+      var clientId = self.generateId();
+      var serverId = self.generateServerIdForClient(clientId);
+      self.clientConnections.set(clientId, socket);
+      self.clientServerIdMap.set(clientId, serverId);
 
-      const selectedLB = this.selectLoadBalancer();
+      var selectedLB = self.selectLoadBalancer();
       if (!selectedLB) {
-        console.error(`[DNSRouter] No LoadBalancer available, closing client connection`);
+        console.log('No LB available');
         socket.end();
-        this.clientConnections.delete(clientId);
-        this.clientServerIdMap.delete(clientId);
+        self.clientConnections.delete(clientId);
+        self.clientServerIdMap.delete(clientId);
         return;
       }
 
-      console.log(`[DNSRouter] Routing client ${clientId} to LoadBalancer at ${selectedLB.host}:${selectedLB.port}`);
+      console.log('Routing client');
 
-      const lbSocket = net.createConnection(
+      var lbSocket = net.createConnection(
         { host: selectedLB.host, port: selectedLB.port },
-        () => {
-          console.log(`[DNSRouter] Tunnel established for client ${clientId} to LoadBalancer`);
+        function() {
+          console.log('Tunnel established');
         }
       );
 
-      socket.on('data', (data) => {
+      socket.on('data', function(data) {
         lbSocket.write(data);
       });
 
-      lbSocket.on('data', (data) => {
+      lbSocket.on('data', function(data) {
         socket.write(data);
       });
 
-      socket.on('close', () => {
-        console.log(`[DNSRouter] Client ${clientId} disconnected`);
+      socket.on('close', function() {
+        console.log('Client disconnected');
         lbSocket.end();
-        this.clientConnections.delete(clientId);
-        this.clientServerIdMap.delete(clientId);
+        self.clientConnections.delete(clientId);
+        self.clientServerIdMap.delete(clientId);
       });
 
-      socket.on('error', (err) => {
-        console.error(`[DNSRouter] Socket error for client ${clientId}:`, err);
+      socket.on('error', function(err) {
+        console.log('Socket error');
         lbSocket.end();
-        this.clientConnections.delete(clientId);
-        this.clientServerIdMap.delete(clientId);
+        self.clientConnections.delete(clientId);
+        self.clientServerIdMap.delete(clientId);
       });
 
-      lbSocket.on('error', (err) => {
-        console.error(`[DNSRouter] LoadBalancer connection error for client ${clientId}:`, err);
+      lbSocket.on('error', function(err) {
+        console.log('LB error');
         socket.end();
-        this.clientConnections.delete(clientId);
-        this.clientServerIdMap.delete(clientId);
+        self.clientConnections.delete(clientId);
+        self.clientServerIdMap.delete(clientId);
       });
 
-      lbSocket.on('close', () => {
-        console.log(`[DNSRouter] LoadBalancer tunnel closed for client ${clientId}`);
+      lbSocket.on('close', function() {
+        console.log('LB tunnel closed');
         socket.end();
       });
     });
 
-    this.server.listen(port, () => {
+    this.server.listen(port, function() {
       console.clear();
       console.log('_______________________________________________');
       console.log('________________   DNS Router   ________________');
-      console.log(`||          DNS Router listening on port ${port}        ||`);
-      console.log(`||  Client Routing: Port ${port}                           ||`);
-      console.log(`||  LB Registration: Port ${this.registrationPort}                        ||`);
-      console.log(`||          Registered ${this.loadBalancerRegistry.length} LoadBalancer instances          ||`);
-      this.loadBalancerRegistry.forEach((lb, idx) => {
-        const lbStr = `${idx + 1}. [${lb.id}] ${lb.host}:${lb.port}`;
-        const paddedLB = lbStr.padEnd(44);
-        console.log(`||  ${paddedLB}||`);
-      });
+      console.log('||          DNS Router listening on port ' + port + '        ||');
+      console.log('||  Client Routing: Port ' + port + '                           ||');
+      console.log('||  LB Registration: Port ' + this.registrationPort + '                        ||');
       console.log('__________________________________________________');
     });
   }
@@ -236,10 +238,11 @@ class DNSRouter {
   }
 
   private printRegistryStatus() {
-    console.log(`[DNSRouter-Registration] Current registry size: ${this.loadBalancerRegistry.length}`);
-    this.loadBalancerRegistry.forEach((lb, idx) => {
-      console.log(`  ${idx + 1}. [${lb.id}] ${lb.host}:${lb.port}`);
-    });
+    console.log('Registry size: ' + this.loadBalancerRegistry.length);
+    for (var i = 0; i < this.loadBalancerRegistry.length; i++) {
+      var lb = this.loadBalancerRegistry[i];
+      console.log('  ' + (i + 1) + '. [' + lb.id + '] ' + lb.host + ':' + lb.port);
+    }
   }
 
   private selectLoadBalancer(): { host: string; port: number } | null {
@@ -262,11 +265,16 @@ class DNSRouter {
   }
 
   getRegisteredLoadBalancers(): Array<{ host: string; port: number; id: string }> {
-    return this.loadBalancerRegistry.map(lb => ({
-      host: lb.host,
-      port: lb.port,
-      id: lb.id
-    }));
+    var ret = [];
+    for (var i = 0; i < this.loadBalancerRegistry.length; i++) {
+      var lb = this.loadBalancerRegistry[i];
+      ret.push({
+        host: lb.host,
+        port: lb.port,
+        id: lb.id
+      });
+    }
+    return ret;
   }
 
   getActiveConnections(): number {

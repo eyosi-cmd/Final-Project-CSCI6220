@@ -9,6 +9,7 @@ class WorkerNode {
   private cancelledJobs: Set<string> = new Set();
 
   constructor() {
+    var self = this;
     this.nodeId = randomUUID();
 
     // Establish connection to the Load Balancer
@@ -18,67 +19,74 @@ class WorkerNode {
     console.clear();
     console.log('_______________________________________________');
     console.log('________________   Worker Node   ______________');
-    console.log(`||          Worker Node started                  ||`);
-    const idStr = `ID: ${this.nodeId}`;
-    const paddedId = idStr.padEnd(44);
-    console.log(`||  ${paddedId}||`);
+    console.log('||          Worker Node started                  ||');
+    var idStr = 'ID: ' + this.nodeId;
+    var paddedId = idStr.padEnd(44);
+    console.log('||  ' + paddedId + '||');
     console.log('__________________________________________________');
 
     this.sendHeartbeat();
-    setInterval(() => {
-      this.sendHeartbeat();
+    setInterval(function() {
+      self.sendHeartbeat();
     }, 2000);
   }
 
   private sendHeartbeat() {
-    const payload: HeartbeatPayload = {
+    var payload = {
       activeJobs: this.activeJobCount
     };
-    const message: ClusterMessage = {
-      type: 'HEARTBEAT',
+    var message = {
+      type: 'HEARTBEAT' as any,
       senderId: this.nodeId,
       requestId: '',
-      payload
-    };
+      payload: payload
+    } as ClusterMessage;
     this.transport.send(message);
   }
 
   private handleMessage(message: ClusterMessage) {
+    var self = this;
     if (message.type === 'JOB_SUBMIT' || message.type === 'SUB_JOB_SUBMIT') {
       this.activeJobCount++;
-      console.log(`Worker ${this.nodeId} received job ${message.requestId}, active jobs: ${this.activeJobCount}`);
+      console.log('Job received');
       
-      this.processJob(message).then(result => {
-        if (this.cancelledJobs.has(message.requestId)) {
-          this.cancelledJobs.delete(message.requestId);
-          console.log(`Worker ${this.nodeId} discarded cancelled job ${message.requestId}`);
+      this.processJob(message).then(function(result) {
+        if (self.cancelledJobs.has(message.requestId)) {
+          self.cancelledJobs.delete(message.requestId);
+          console.log('Job cancelled');
         } else {
-          this.activeJobCount--;
-          const resultMessage: ClusterMessage = {
+          self.activeJobCount--;
+          var resultMessage = {
             type: message.type === 'JOB_SUBMIT' ? 'JOB_RESULT' : 'SUB_JOB_RESULT',
-            senderId: this.nodeId,
+            senderId: self.nodeId,
             requestId: message.requestId,
             payload: result,
             retryCount: message.retryCount || 0
-          };
-          this.transport.send(resultMessage);
-          console.log(`Worker ${this.nodeId} completed job ${message.requestId}, active jobs: ${this.activeJobCount}`);
+          } as any as ClusterMessage;
+          self.transport.send(resultMessage);
+          console.log('Job done');
         }
       });
     }
   }
 
-  private async processJob(message: ClusterMessage): Promise<any> {
-    const { payload } = message;
+  private processJob(message: ClusterMessage): Promise<any> {
+    var payload = message.payload;
+    var self = this;
     
-    if (Array.isArray(payload)) {
-      // Longer delay for observable metrics in UI
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      return payload.map((num: number) => num * 2);
-    } else {
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      return { result: 'Job completed successfully' };
-    }
+    return new Promise(function(resolve) {
+      setTimeout(function() {
+        if (Array.isArray(payload)) {
+          var result = [];
+          for (var i = 0; i < payload.length; i++) {
+            result.push(payload[i] * 2);
+          }
+          resolve(result);
+        } else {
+          resolve({ result: 'done' });
+        }
+      }, 3000);
+    });
   }
 
   cancelJob(requestId: string) {

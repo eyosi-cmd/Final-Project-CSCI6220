@@ -1,221 +1,201 @@
-// Dashboard Client - JavaScript Frontend Module
-// Manages UI interactions and real-time metrics from ClusterOS backend
-
-// API Constants
-const API = {
+// dashboard client
+var API = {
   metrics: '/api/metrics',
   startLB: '/api/start-lb',
   stopLB: '/api/kill-lb',
   addWorker: '/api/start-worker',
   removeWorker: '/api/kill-worker',
   submitJob: '/api/submit-job',
-  jobResult: (id) => `/api/job-result/${id}`,
-  cancelJob: (id) => `/api/cancel-job/${id}`
+  jobResult: function(id) { return '/api/job-result/' + id; },
+  cancelJob: function(id) { return '/api/cancel-job/' + id; }
 };
 
-// Global dashboard state
-const dashboard = {
+// state
+var dashboard = {
   metricsUpdateInterval: null,
   jobResultCheckInterval: null,
   currentJobId: null,
   resultHistory: []
 };
 
-// Initialize on DOM ready
-document.addEventListener('DOMContentLoaded', () => {
+// init
+document.addEventListener('DOMContentLoaded', function() {
   initializeEventListeners();
   startMetricsUpdate();
-  updateSystemStatus();
 });
 
-// ==================== EVENT LISTENERS ====================
-
+// event setup
 function initializeEventListeners() {
-  const startLbBtn = document.getElementById('start-lb');
-  const stopLbBtn = document.getElementById('stop-lb');
-  const addWorkerBtn = document.getElementById('add-worker');
-  const removeWorkerBtn = document.getElementById('remove-worker');
-  const submitJobBtn = document.getElementById('submit-job');
-  const clearOutputBtn = document.getElementById('clear-output');
-  const jobDataInput = document.getElementById('job-data');
+  var startLbBtn = document.getElementById('start-lb');
+  var stopLbBtn = document.getElementById('stop-lb');
+  var addWorkerBtn = document.getElementById('add-worker');
+  var removeWorkerBtn = document.getElementById('remove-worker');
+  var submitJobBtn = document.getElementById('submit-job');
+  var clearOutputBtn = document.getElementById('clear-output');
 
-  startLbBtn?.addEventListener('click', handleStartLB);
-  stopLbBtn?.addEventListener('click', handleStopLB);
-  addWorkerBtn?.addEventListener('click', handleAddWorker);
-  removeWorkerBtn?.addEventListener('click', handleRemoveWorker);
-  submitJobBtn?.addEventListener('click', handleSubmitJob);
-  clearOutputBtn?.addEventListener('click', clearJobResults);
-
-  jobDataInput?.addEventListener('keydown', (e) => {
-    if (e.ctrlKey && e.key === 'Enter') {
-      handleSubmitJob();
-    }
-  });
+  if (startLbBtn) startLbBtn.addEventListener('click', handleStartLB);
+  if (stopLbBtn) stopLbBtn.addEventListener('click', handleStopLB);
+  if (addWorkerBtn) addWorkerBtn.addEventListener('click', handleAddWorker);
+  if (removeWorkerBtn) removeWorkerBtn.addEventListener('click', handleRemoveWorker);
+  if (submitJobBtn) submitJobBtn.addEventListener('click', handleSubmitJob);
+  if (clearOutputBtn) clearOutputBtn.addEventListener('click', clearJobResults);
 }
 
 // ==================== BUTTON HANDLERS ====================
 
-async function handleStartLB() {
-  const btn = document.getElementById('start-lb');
+function handleStartLB() {
+  var btn = document.getElementById('start-lb');
   setButtonLoading(btn, true);
 
-  try {
-    const response = await fetch(API.startLB, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
-    });
-    const data = await response.json();
-
+  fetch(API.startLB, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' }
+  }).then(function(response) {
+    return response.json();
+  }).then(function(data) {
     if (data.error) {
-      addLog(`❌ Failed to start LB: ${data.error}`, 'error');
+      addLog('Failed: ' + data.error);
     } else {
-      addLog(`✓ Load Balancer started - ${data.status}`, 'success');
-      setTimeout(updateSystemStatus, 1000);
+      addLog('LB started');
+      setTimeout(updateMetrics, 1000);
     }
-  } catch (err) {
-    addLog(`❌ Error: ${err.message}`, 'error');
-  } finally {
     setButtonLoading(btn, false);
-  }
+  }).catch(function(err) {
+    addLog('Error: ' + err.message);
+    setButtonLoading(btn, false);
+  });
 }
 
-async function handleStopLB() {
-  const btn = document.getElementById('stop-lb');
+function handleStopLB() {
+  var btn = document.getElementById('stop-lb');
   setButtonLoading(btn, true);
 
-  try {
-    const response = await fetch(API.stopLB, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
-    });
-    const data = await response.json();
-
+  fetch(API.stopLB, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' }
+  }).then(function(response) {
+    return response.json();
+  }).then(function(data) {
     if (data.error) {
-      addLog(`❌ Failed to stop LB: ${data.error}`, 'error');
+      addLog('Failed: ' + data.error);
     } else {
-      addLog(`✓ Load Balancer stopped - ${data.status}`, 'success');
-      updateSystemStatus();
+      addLog('LB stopped');
+      updateMetrics();
     }
-  } catch (err) {
-    addLog(`❌ Error: ${err.message}`, 'error');
-  } finally {
     setButtonLoading(btn, false);
-  }
+  }).catch(function(err) {
+    addLog('Error: ' + err.message);
+    setButtonLoading(btn, false);
+  });
 }
 
-async function handleAddWorker() {
-  const btn = document.getElementById('add-worker');
+function handleAddWorker() {
+  var btn = document.getElementById('add-worker');
   setButtonLoading(btn, true);
 
-  try {
-    const response = await fetch(API.addWorker, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
-    });
-    const data = await response.json();
-
+  fetch(API.addWorker, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' }
+  }).then(function(response) {
+    return response.json();
+  }).then(function(data) {
     if (data.error) {
-      addLog(`❌ Failed to add worker: ${data.error}`, 'error');
+      addLog('Failed: ' + data.error);
     } else {
-      addLog(`✓ Worker added - ${data.status}`, 'success');
+      addLog('Worker added');
       setTimeout(updateMetrics, 500);
     }
-  } catch (err) {
-    addLog(`❌ Error: ${err.message}`, 'error');
-  } finally {
     setButtonLoading(btn, false);
-  }
+  }).catch(function(err) {
+    addLog('Error: ' + err.message);
+    setButtonLoading(btn, false);
+  });
 }
-
-async function handleRemoveWorker() {
-  const btn = document.getElementById('remove-worker');
+  var btn = document.getElementById('remove-worker');
   setButtonLoading(btn, true);
 
-  try {
-    const response = await fetch(API.removeWorker, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
-    });
-    const data = await response.json();
-
+  fetch(API.removeWorker, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' }
+  }).then(function(response) {
+    return response.json();
+  }).then(function(data) {
     if (data.error) {
-      addLog(`❌ Failed to remove worker: ${data.error}`, 'error');
+      addLog('Failed: ' + data.error);
     } else {
-      addLog(`✓ Worker removed - ${data.status}`, 'success');
+      addLog('Worker removed');
       setTimeout(updateMetrics, 500);
     }
-  } catch (err) {
-    addLog(`❌ Error: ${err.message}`, 'error');
-  } finally {
     setButtonLoading(btn, false);
-  }
+  }).catch(function(err) {
+    addLog('Error: ' + err.message);
+    setButtonLoading(btn, false);
+  });
 }
 
-async function handleSubmitJob() {
-  const input = document.getElementById('job-data');
-  const jobData = input.value.trim();
+function handleSubmitJob() {
+  var input = document.getElementById('job-data');
+  var jobData = input.value.trim();
 
   if (!jobData) {
-    addLog('❌ Please enter job data (JSON array)', 'error');
+    addLog('Enter job data');
     return;
   }
 
-  let parsedData;
+  var parsedData;
   try {
     parsedData = JSON.parse(jobData);
     if (!Array.isArray(parsedData)) {
       throw new Error('Data must be a JSON array');
     }
   } catch (err) {
-    addLog(`❌ Invalid JSON: ${err.message}`, 'error');
+    addLog('Bad JSON');
     return;
   }
 
-  const btn = document.getElementById('submit-job');
+  var btn = document.getElementById('submit-job');
   setButtonLoading(btn, true);
 
-  try {
-    const response = await fetch(API.submitJob, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ data: parsedData })
-    });
-
-    const result = await response.json();
-
+  fetch(API.submitJob, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ data: parsedData })
+  }).then(function(response) {
+    return response.json();
+  }).then(function(result) {
     if (result.error) {
-      addLog(`❌ Submission failed: ${result.error}`, 'error');
+      addLog('Submit failed: ' + result.error);
     } else {
       dashboard.currentJobId = result.jobId;
-      addLog(`✓ Job submitted [ID: ${result.jobId}]`, 'success');
-      addLog(`→ Processing ${parsedData.length} items...`, 'info');
+      addLog('Job: ' + result.jobId);
+      addLog('Processing...');
       input.value = '';
-
       startJobResultCheck();
     }
-  } catch (err) {
-    addLog(`❌ Error: ${err.message}`, 'error');
-  } finally {
     setButtonLoading(btn, false);
-  }
+  }).catch(function(err) {
+    addLog('Error: ' + err.message);
+    setButtonLoading(btn, false);
+  });
 }
 
-// ==================== POLLING & UPDATES ====================
+// polling
 
 function startMetricsUpdate() {
   updateMetrics();
-  dashboard.metricsUpdateInterval = setInterval(updateMetrics, 2000);
+  dashboard.metricsUpdateInterval = setInterval(function() {
+    updateMetrics();
+  }, 2000);
 }
 
-async function updateMetrics() {
-  try {
-    const response = await fetch(API.metrics);
-    const metrics = await response.json();
-
-    const healthyEl = document.getElementById('metric-healthy');
-    const totalEl = document.getElementById('metric-total');
-    const activeEl = document.getElementById('metric-active');
-    const queuedEl = document.getElementById('metric-queued');
+function updateMetrics() {
+  fetch(API.metrics).then(function(response) {
+    return response.json();
+  }).then(function(metrics) {
+    var healthyEl = document.getElementById('metric-healthy');
+    var totalEl = document.getElementById('metric-total');
+    var activeEl = document.getElementById('metric-active');
+    var queuedEl = document.getElementById('metric-queued');
 
     if (healthyEl) healthyEl.textContent = String(metrics.healthyWorkers || 0);
     if (totalEl) totalEl.textContent = String(metrics.totalWorkers || 0);
@@ -223,49 +203,13 @@ async function updateMetrics() {
     if (queuedEl) queuedEl.textContent = String(metrics.queuedJobs || 0);
 
     updateCircuitBreakers(metrics.circuitBreakerStates || {});
-    updateSystemStatus();
-  } catch (err) {
+  }).catch(function(err) {
     console.error('Failed to fetch metrics:', err);
-  }
-}
-
-async function updateSystemStatus() {
-  try {
-    const response = await fetch(API.metrics);
-    if (response.ok) {
-      const data = await response.json();
-      const status = document.getElementById('system-status');
-
-      if (!status) return;
-
-      const dot = status.querySelector('.status-dot');
-      const text = status.querySelector('.status-text');
-
-      if (data.healthyWorkers > 0) {
-        status.style.background = 'rgba(16, 185, 129, 0.1)';
-        status.style.borderColor = 'rgba(16, 185, 129, 0.3)';
-        if (dot) dot.style.background = '#10b981';
-        if (text) {
-          text.textContent = 'Online';
-          text.style.color = '#10b981';
-        }
-      } else {
-        status.style.background = 'rgba(239, 68, 68, 0.1)';
-        status.style.borderColor = 'rgba(239, 68, 68, 0.3)';
-        if (dot) dot.style.background = '#ef4444';
-        if (text) {
-          text.textContent = 'Offline';
-          text.style.color = '#ef4444';
-        }
-      }
-    }
-  } catch (err) {
-    console.error('Failed to update system status:', err);
-  }
+  });
 }
 
 function updateCircuitBreakers(states) {
-  const container = document.getElementById('circuit-breakers');
+  var container = document.getElementById('circuit-breakers');
 
   if (!container) return;
 
@@ -274,17 +218,13 @@ function updateCircuitBreakers(states) {
     return;
   }
 
-  let html = '';
-  for (const [worker, state] of Object.entries(states)) {
-    const statusColor = getStatusColor(state);
-    html += `
-      <div class="circuit-item">
-        <span>${worker}</span>
-        <span class="circuit-status" style="background: ${statusColor.bg}; color: ${statusColor.text}">
-          ${state}
-        </span>
-      </div>
-    `;
+  var html = '';
+  var keys = Object.keys(states);
+  for (var i = 0; i < keys.length; i++) {
+    var worker = keys[i];
+    var state = states[worker];
+    var statusColor = getStatusColor(state);
+    html += '<div class="circuit-item"><span>' + worker + '</span><span class="circuit-status" style="background: ' + statusColor.bg + '; color: ' + statusColor.text + '">' + state + '</span></div>';
   }
   container.innerHTML = html;
 }
@@ -307,27 +247,27 @@ function startJobResultCheck() {
     clearInterval(dashboard.jobResultCheckInterval);
   }
 
-  let checkCount = 0;
-  const maxChecks = 60; // Check for up to 2 minutes
+  var checkCount = 0;
+  var maxChecks = 60;
 
-  dashboard.jobResultCheckInterval = setInterval(async () => {
+  dashboard.jobResultCheckInterval = setInterval(function() {
     checkCount++;
 
     if (checkCount > maxChecks) {
-      addLog('⚠ Job result check timed out', 'warning');
+      addLog('Job result check timed out');
       clearInterval(dashboard.jobResultCheckInterval);
       return;
     }
 
-    try {
-      if (!dashboard.currentJobId) return;
+    if (!dashboard.currentJobId) return;
 
-      const response = await fetch(API.jobResult(dashboard.currentJobId));
-      const job = await response.json();
-
+    fetch(API.jobResult(dashboard.currentJobId)).then(function(response) {
+      return response.json();
+    }).then(function(job) {
       if (job.result) {
-        addLog(`✓ Job completed!`, 'success');
-        addLog(`← Result: [${job.result.join(', ')}]`, 'result');
+        addLog('Job completed');
+        var resultStr = job.result.join(', ');
+        addLog('Result: [' + resultStr + ']');
         dashboard.resultHistory.push({
           input: job.data,
           output: job.result,
@@ -335,9 +275,9 @@ function startJobResultCheck() {
         });
         clearInterval(dashboard.jobResultCheckInterval);
       }
-    } catch (err) {
+    }).catch(function(err) {
       console.error('Error checking job result:', err);
-    }
+    });
   }, 2000);
 }
 
@@ -363,7 +303,7 @@ function clearJobResults() {
 }
 
 function setButtonLoading(button, isLoading) {
-  const textEl = button.querySelector('.btn-text');
+  var textEl = button.querySelector('.btn-text');
 
   if (!textEl) return;
 
@@ -374,7 +314,7 @@ function setButtonLoading(button, isLoading) {
   } else {
     button.disabled = false;
     button.style.opacity = '1';
-    const originalTexts = {
+    var originalTexts = {
       'start-lb': 'Start LB',
       'stop-lb': 'Stop LB',
       'add-worker': 'Add Worker',
@@ -385,8 +325,8 @@ function setButtonLoading(button, isLoading) {
   }
 }
 
-// Cleanup on page unload
-window.addEventListener('beforeunload', () => {
+// cleanup on page unload
+window.addEventListener('beforeunload', function() {
   if (dashboard.metricsUpdateInterval) {
     clearInterval(dashboard.metricsUpdateInterval);
   }
