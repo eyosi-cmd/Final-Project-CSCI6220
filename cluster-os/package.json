@@ -1,0 +1,22 @@
+{
+  "name": "cluster-os",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start:dns": "node -r ts-node/register src/network/DNSRouter.ts",
+    "start:lb": "node -r ts-node/register src/kernel/LoadBalancer.ts",
+    "start:worker": "node -r ts-node/register src/worker/WorkerNode.ts",
+    "start:client": "node -r ts-node/register src/client/UserClient.ts",
+    "start:dashboard": "node -r ts-node/register src/dashboard/Dashboard.ts",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "@types/node": "^25.3.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  }
+}

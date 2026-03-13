@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ClusterOS Dashboard</title>
+  <link rel="stylesheet" href="dashboard.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>ClusterOS Dashboard</h1>
+      <p>Monitor and Control Your Distributed Cluster</p>
+    </header>
+
+    <div class="dashboard">
+      <div class="card">
+        <h2>Cluster Status</h2>
+        <div class="metric">
+          <span class="metric-label">Healthy Workers</span>
+          <span class="metric-value healthy" id="healthyWorkers">0</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">Total Workers</span>
+          <span class="metric-value" id="totalWorkers">0</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">Active Jobs</span>
+          <span class="metric-value" id="activeJobs">0</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">Queued Jobs</span>
+          <span class="metric-value warning" id="queuedJobs">0</span>
+        </div>
+        <div class="timestamp" id="lastUpdate"></div>
+      </div>
+
+      <div class="card">
+        <h2>Controls</h2>
+        <div class="button-group">
+          <button class="btn-success" onclick="startLoadBalancer()">Start Load Balancer</button>
+          <button class="btn-danger" onclick="killLoadBalancer()">Stop Load Balancer</button>
+        </div>
+        <div class="button-group">
+          <button class="btn-primary" onclick="startWorker()">Add Worker</button>
+          <button class="btn-danger" onclick="killWorker()">Remove Worker</button>
+        </div>
+        <div id="statusMessage" class="status-message"></div>
+      </div>
+
+      <div class="card full-width">
+        <h2>Circuit Breaker Status</h2>
+        <ul class="circuit-breaker-list" id="circuitBreakerList">
+          <li class="empty-state">No workers connected yet</li>
+        </ul>
+      </div>
+
+      <div class="card full-width">
+        <h2>Submit Job</h2>
+        <div class="job-input-group">
+          <input type="text" id="jobInput" placeholder="Enter array: [1,2,3,4,5]">
+          <button class="btn-success" onclick="submitJob()">Submit</button>
+          <button class="btn-danger" id="cancelBtn" onclick="cancelJob()" style="display: none;">Stop Job</button>
+        </div>
+        <div id="jobResult" class="job-result-display"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = 'http://localhost:5000';
+    let activeJobId = null;
+
+    async function fetchMetrics() {
+      try {
+        const response = await fetch(`${API_BASE}/api/metrics`);
+        const data = await response.json();
+
+        document.getElementById('healthyWorkers').textContent = data.healthyWorkers;
+        document.getElementById('totalWorkers').textContent = data.totalWorkers;
+        document.getElementById('activeJobs').textContent = data.activeJobs;
+        document.getElementById('queuedJobs').textContent = data.queuedJobs;
+
+        const date = new Date(data.timestamp);
+        document.getElementById('lastUpdate').textContent = `Last updated: ${date.toLocaleTimeString()}`;
+
+        const cbList = document.getElementById('circuitBreakerList');
+        const states = data.circuitBreakerStates || {};
+        const entries = Object.entries(states);
+
+        if (entries.length === 0) {
+          cbList.innerHTML = '<li class="empty-state">No workers connected yet</li>';
+        } else {
+          cbList.innerHTML = entries.map(([workerId, state]) => {
+            const statusClass = `status-${state.toLowerCase().replace('_', '-')}`;
+            return `<li class="${statusClass}"><strong>${workerId}:</strong> ${state}</li>`;
+          }).join('');
+        }
+
+        if (activeJobId) {
+          checkJobResult(activeJobId);
+        }
+      } catch (error) {
+        console.error('Error fetching metrics:', error);
+      }
+    }
+
+    async function startLoadBalancer() {
+      try {
+        const response = await fetch(`${API_BASE}/api/start-lb`, { method: 'POST' });
+        const data = await response.json();
+        showMessage(data.status || data.error, data.error ? 'error' : 'success');
+        setTimeout(fetchMetrics, 1500);
+      } catch (error) {
+        showMessage('Failed to start Load Balancer', 'error');
+      }
+    }
+
+    async function killLoadBalancer() {
+      try {
+        const response = await fetch(`${API_BASE}/api/kill-lb`, { method: 'POST' });
+        const data = await response.json();
+        showMessage(data.status || data.error, data.error ? 'error' : 'success');
+        setTimeout(fetchMetrics, 500);
+      } catch (error) {
+        showMessage('Failed to stop Load Balancer', 'error');
+      }
+    }
+
+    async function startWorker() {
+      try {
+        const response = await fetch(`${API_BASE}/api/start-worker`, { method: 'POST' });
+        const data = await response.json();
+        showMessage(data.status || data.error, data.error ? 'error' : 'success');
+        setTimeout(fetchMetrics, 1000);
+      } catch (error) {
+        showMessage('Failed to start Worker', 'error');
+      }
+    }
+
+    async function killWorker() {
+      try {
+        const response = await fetch(`${API_BASE}/api/kill-worker`, { method: 'POST' });
+        const data = await response.json();
+        showMessage(data.status || data.error, data.error ? 'error' : 'success');
+        setTimeout(fetchMetrics, 500);
+      } catch (error) {
+        showMessage('Failed to stop Worker', 'error');
+      }
+    }
+
+    async function submitJob() {
+      const input = document.getElementById('jobInput').value.trim();
+      if (!input) {
+        showMessage('Enter an array like [1,2,3,4,5]', 'error');
+        return;
+      }
+
+      try {
+        const data = JSON.parse(input);
+        if (!Array.isArray(data)) {
+          showMessage('Input must be a valid JSON array', 'error');
+          return;
+        }
+
+        const response = await fetch(`${API_BASE}/api/submit-job`, {
+          method: 'POST',
+          body: JSON.stringify({ data })
+        });
+
+        const result = await response.json();
+        if (result.error) {
+          showMessage(result.error, 'error');
+          return;
+        }
+
+        activeJobId = result.jobId;
+        document.getElementById('jobInput').value = '';
+        document.getElementById('cancelBtn').style.display = 'inline-block';
+        showMessage(`Job submitted: ${result.jobId}`, 'success');
+        updateJobResult('Waiting for result...');
+      } catch (err) {
+        showMessage('Invalid JSON format', 'error');
+      }
+    }
+
+    async function cancelJob() {
+      if (!activeJobId) {
+        showMessage('No active job to cancel', 'error');
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_BASE}/api/cancel-job/${activeJobId}`, {
+          method: 'GET'
+        });
+
+        const result = await response.json();
+        showMessage(result.status || result.error, result.error ? 'error' : 'success');
+        document.getElementById('cancelBtn').style.display = 'none';
+        updateJobResult('Job cancelled');
+        activeJobId = null;
+      } catch (err) {
+        showMessage('Failed to cancel job', 'error');
+      }
+    }
+
+    async function checkJobResult(jobId) {
+      try {
+        const response = await fetch(`${API_BASE}/api/job-result/${jobId}`);
+        const job = await response.json();
+        
+        if (job.result) {
+          updateJobResult(`Result: [${job.result.join(', ')}]`);
+          document.getElementById('cancelBtn').style.display = 'none';
+          activeJobId = null;
+        } else {
+          updateJobResult(`Waiting... (${Math.round((Date.now() - job.requestedAt) / 1000)}s)`);
+        }
+      } catch {}
+    }
+
+    function updateJobResult(text) {
+      const el = document.getElementById('jobResult');
+      el.textContent = text;
+    }
+
+    function showMessage(text, type) {
+      const msgDiv = document.getElementById('statusMessage');
+      msgDiv.className = `message ${type}`;
+      msgDiv.textContent = text;
+      setTimeout(() => {
+        msgDiv.textContent = '';
+      }, 3000);
+    }
+
+    fetchMetrics();
+    setInterval(fetchMetrics, 2000);
+  </script>
+</body>
+</html>
