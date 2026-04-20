@@ -1,10 +1,17 @@
 import * as net from 'net';
 import { ClusterMessage } from '../common/types';
 
+interface LoadBalancerRegistryEntry {
+  host: string;
+  port: number;
+  id: string;
+  registered: number;
+}
+
 class DNSRouter {
   private server: net.Server | null = null;
   private registrationServer: net.Server | null = null;
-  private loadBalancerRegistry: Array<{ host: string; port: number; id: string; registered: number }> = [];
+  private loadBalancerRegistry: LoadBalancerRegistryEntry[] = [];
   private lbIdToAddress: Map<string, { host: string; port: number }> = new Map();
   private currentIndex = 0;
   private clientConnections: Map<string, net.Socket> = new Map();
@@ -15,10 +22,9 @@ class DNSRouter {
   constructor(port: number, registrationPort: number, loadBalancers: Array<{ host: string; port: number }>) {
     this.registrationPort = registrationPort;
     
-    // init registry
-    var registry = [];
-    for (var i = 0; i < loadBalancers.length; i++) {
-      var lb = loadBalancers[i];
+    const registry: LoadBalancerRegistryEntry[] = [];
+    for (let i = 0; i < loadBalancers.length; i++) {
+      const lb = loadBalancers[i];
       registry.push({
         host: lb.host,
         port: lb.port,
@@ -28,9 +34,8 @@ class DNSRouter {
     }
     this.loadBalancerRegistry = registry;
 
-    // populate map
-    for (var i = 0; i < this.loadBalancerRegistry.length; i++) {
-      var lb = this.loadBalancerRegistry[i];
+    for (let i = 0; i < this.loadBalancerRegistry.length; i++) {
+      const lb = this.loadBalancerRegistry[i];
       this.lbIdToAddress.set(lb.id, { host: lb.host, port: lb.port });
     }
 
@@ -39,58 +44,60 @@ class DNSRouter {
   }
 
   private setupClientRoutingServer(port: number) {
-    var self = this;
+    const self = this;
     this.server = net.createServer(function(socket) {
-      var clientId = self.generateId();
-      var serverId = self.generateServerIdForClient(clientId);
-      self.clientConnections.set(clientId, socket);
-      self.clientServerIdMap.set(clientId, serverId);
+      const cid = self.generateId();
+      const serverId = self.generateServerIdForClient(cid);
+      self.clientConnections.set(cid, socket);
+      self.clientServerIdMap.set(cid, serverId);
 
-      var selectedLB = self.selectLoadBalancer();
-      if (!selectedLB) {
-        console.log('No LB available');
+      const lb = self.selectLoadBalancer();
+      if (!lb) {
+        console.log('[DNSRouter] No load balancer available');
         socket.end();
-        self.clientConnections.delete(clientId);
-        self.clientServerIdMap.delete(clientId);
+        self.clientConnections.delete(cid);
+        self.clientServerIdMap.delete(cid);
         return;
       }
 
-      console.log('Routing client');
+      console.log('[DNSRouter] Routing client ' + cid + ' to LB');
 
-      var lbSocket = net.createConnection(
-        { host: selectedLB.host, port: selectedLB.port },
+      const lbSocket = net.createConnection(
+        { host: lb.host, port: lb.port },
         function() {
-          console.log('Tunnel established');
+          console.log('[DNSRouter] Connected to load balancer');
         }
       );
 
       socket.on('data', function(data) {
+        // forward client data to LB
         lbSocket.write(data);
       });
 
       lbSocket.on('data', function(data) {
+        // send LB response back to client
         socket.write(data);
       });
 
       socket.on('close', function() {
-        console.log('Client disconnected');
+        console.log('[DNSRouter] Client ' + cid + ' disconnected');
         lbSocket.end();
-        self.clientConnections.delete(clientId);
-        self.clientServerIdMap.delete(clientId);
+        self.clientConnections.delete(cid);
+        self.clientServerIdMap.delete(cid);
       });
 
       socket.on('error', function(err) {
-        console.log('Socket error');
+        console.log('[DNSRouter] Client socket error: ' + err.message);
         lbSocket.end();
-        self.clientConnections.delete(clientId);
-        self.clientServerIdMap.delete(clientId);
+        self.clientConnections.delete(cid);
+        self.clientServerIdMap.delete(cid);
       });
 
       lbSocket.on('error', function(err) {
-        console.log('LB error');
+        console.log('[DNSRouter] LB connection error: ' + err.message);
         socket.end();
-        self.clientConnections.delete(clientId);
-        self.clientServerIdMap.delete(clientId);
+        self.clientConnections.delete(cid);
+        self.clientServerIdMap.delete(cid);
       });
 
       lbSocket.on('close', function() {
@@ -105,7 +112,7 @@ class DNSRouter {
       console.log('________________   DNS Router   ________________');
       console.log('||          DNS Router listening on port ' + port + '        ||');
       console.log('||  Client Routing: Port ' + port + '                           ||');
-      console.log('||  LB Registration: Port ' + this.registrationPort + '                        ||');
+      console.log('||  LB Registration: Port ' + self.registrationPort + '                        ||');
       console.log('__________________________________________________');
     });
   }

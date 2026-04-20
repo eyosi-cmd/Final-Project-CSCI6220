@@ -1,0 +1,54 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    name: Build & Validate
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: cluster-os/package-lock.json
+
+      - name: Install dependencies
+        working-directory: cluster-os
+        run: npm ci
+
+      - name: Build TypeScript
+        working-directory: cluster-os
+        run: npx tsc
+
+      # ── Services below CANNOT run on Vercel (raw TCP / persistent processes) ──
+      # DNSRouter   — raw TCP server (:2000, :3000)
+      # LoadBalancer — raw TCP server (:3010) + metrics HTTP (:9001)
+      # WorkerNode  — persistent TCP client with heartbeat loop
+      # Dashboard   — Node.js HTTP server that spawns child processes
+      #
+      # Run all of them locally with:  npm run start:all
+      # ─────────────────────────────────────────────────────────────────────────
+      # Vercel  → serves dist/index.html (static) + dist/render/server.js (API)
+      # Render  → runs dist/render/server.js as a persistent Node.js web service
+
+  # Vercel auto-deploys via its GitHub integration when the repo is connected
+  # in the Vercel dashboard — no extra CI step needed.
+  # On every push to main, Vercel runs: npm run build  (npx tsc)
+  # and serves the outputDirectory: public/
+  #
+  # Render auto-deploys via its GitHub integration when render.yaml is present.
+  # No extra CI step needed — Render picks up this repo on every push to main
+  # and runs:  build: npm install && npx tsc
+  #            start: npm run start:render  (node dist/render/server.js)
+  # Service:   cluster-os-backend  (render.yaml)
+

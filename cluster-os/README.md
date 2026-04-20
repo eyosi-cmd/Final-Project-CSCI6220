@@ -1,308 +1,360 @@
-# ClusterOS
+# ClusterOS - Distributed Systems Simulation
 
-So basically a distributed system where a load balancer acts like the kernel and manage a cluster of worker nodes.
+ClusterOS is a distributed systems project that simulates a cluster of computers working together. It demonstrates how load balancers distribute work across multiple machines, how systems detect failures, and how they recover from problems automatically.
 
-## What it do
+## What's Inside
 
-- **Load Balancer**: added consepts of job routings, it tracks workers,also handle failures
-- **Worker Nodes**: They do the actual work
-- **Clients**: Send jobs to the system
+ClusterOS includes:
+- Load Balancer: Routes jobs to available worker machines
+- Worker Nodes: Process jobs and return results
+- DNS Router: Manages service discovery
+- Dashboard: A web interface to monitor and control everything
+- Real-time Metrics: Monitor cluster health and performance
 
-Everything communicate using TCP sockets and JSON messages. it is pretty straightforward.
+## Prerequisites
 
-## How to Actually Run It
+You need:
+- Node.js version 16 or higher
+- npm (comes with Node.js)
 
-### Prerequisites & Setup
-
-Before you run anything, make sure you got everything you need:
-
-**Required:**
-- Node.js installed (you can get it from nodejs.org)
-- npm come with Node.js so you should have it automatically
-- Git (optional but recommended for cloning the repo)
-
-**Installation Steps:**
-1. Make sure you in the `cluster-os` directory: `cd cluster-os`
-2. Install all the dependencies: `npm install`
-3. Wait for npm to finish installing packages (might take a minute)
-4. Now you ready to run the application
-
-### Using the Dashboard UI - Easier Way
-
-```powershell
-cd cluster-os
-npm run start:dashboard
+To check if you have them:
+```bash
+node --version
+npm --version
 ```
 
-Then open `http://localhost:5000` in your browser. You gonna see a nice UI with buttons and stuff. Just click to start the load balancer and add workers.
+## Installation
 
-#### Detailed Testing Based on Distributed Systems Concepts
-
-After you get the UI open, here some testing steps based on concepts from "Distributed Systems: Concepts and Design":
-
-**Single System Image (SSI) Testing:**
-- Click "Start Load Balancer" - this create the kernel of your distributed system
-- Even though the Load Balancer is one component, it gonna present as one unified interface to clients
-- Submit multiple jobs and notice how you still interacting with one system even though there multiple workers behind scenes
-- This demonstrate the SSI principle where clients don't need to worry about which worker processing their job
-
-**Load Balancing & Job Distribution:**
-- Add 3 workers to the cluster
-- Submit several jobs in quick succession like `[1,2,3]`, `[4,5,6]`, `[7,8,9]`
-- Watch the dashboard - each worker should get roughly equal number of jobs (this the least-loaded scheduling algorithm)
-- This show how the system distribute work evenly across nodes
-
-**Failure Detection & Fault Tolerance:**
-
--Start the system with 2 workers
-- Submit a normal job first to confirm everything working
-- Then manually stop one of the worker processes (you can kill it from task manager or terminal)
-- Notice how the Load Balancer detect this within few seconds (heartbeat timeout is 5 seconds)
-- The dashboard should show that worker is no longer healthy
-- Submit another job and it should route to the remaining healthy worker
-- This demonstrate fault tolerance and automatic failure detection using heartbeat monitoring
-
-**Example Scenario for Fault Tolerance:**
-1. Start dashboard and click "Start Load Balancer"
-2. Add 2 workers - you should see both marked as "healthy" with green status
-3. Submit job `[10,20,30]` - you should get result `[20,40,60]` back (this confirm everything working)
-4. Now go to task manager (or use PowerShell) and kill one of the worker node processes
-5. Go back to dashboard - you might still see 2 workers but after 5-6 seconds one should change to "unhealthy" or disappear
-6. Submit another job `[5,15]` while one worker is down
-7. The Load Balancer automatically route it to the remaining healthy worker
-8. You still get result `[10,30]` back even though one worker crashed
-9. This show that the system can handle worker failures and keep operating
-10. The Load Balancer detect missing heartbeat from dead worker and exclude it from job scheduling
-
-**Concurrency Transparency:**
-- Submit multiple jobs from the browser dashboard at the same time
-- Type quick job like `[1]`, `[2]`, `[3]` and click submit multiple times rapidly
-- All jobs run in parallel on different workers without you needing to manage synchronization
-- The results come back as each worker finish, demonstrating that client don't see the concurrent nature
-
-**Queue Management & Job Scheduling:**
-- Start the system with 1 worker only
-- Submit 5 jobs rapidly in succession with different arrays like `[1,2,3]`, `[4,5,6]`, `[7,8,9]`, `[10,11,12]`, `[13,14,15]`
-- Since you only got 1 worker, the first job start processing immediately but the other 4 jobs go into the queue
-- Watch the dashboard Queued Jobs counter go up to 4 while 1 active job running
-- As the worker finish each job, you see the queued jobs count decrease
-- Eventually all jobs process completely and queued jobs go back to 0
-- This demonstrate how the system handle job scheduling when workers are saturated
-- Submit 10 jobs with just 1 worker and notice how the queue build up and then drain as jobs complete
-
-**Transparency in Action:**
-- Submit a job through the dashboard (location transparency)
-- The client don't need to know which worker will process it or where it located
-- Load Balancer handle all that transparently
-- Client just send job and get result back without caring about underlying distribution
-
-### Or Use Command Line If You Want
-
-Open different terminals in your IDE (like VS Code or others) and run these commands one by one. Make sure you already ran `npm install` and your in the `cluster-os` directory:
-
-```
-Dashboard listening on http://localhost:5000
-✓ Metrics API: http://localhost:5000/api/metrics
-✓ Job Submission: http://localhost:5000/api/submit-job
-
-User opens browser to http://localhost:5000:
-  - Clicks "Start Load Balancer"
-  - Healthy workers: 0 → (wait)
-  - Load Balancer starts listening on port 3000
-  
-  - Clicks "Add Worker"
-  - Healthy workers: 1 (connected via heartbeat)
-  
-  - Clicks "Add Worker" again
-  - Healthy workers: 2 (both workers connected)
-  
-  - Enters [1,2,3] and clicks "Submit"
-  - Job ID: job-1-1773201639712
-  - Result appears: [2, 4, 6] ✓
-
-Metrics show:
-  Healthy Workers: 2
-  Total Workers: 4 (internal pool)
-  Active Jobs: 0
-  Circuit Breaker: CLOSED for all workers
+1. Open your terminal or PowerShell
+2. Navigate to the cluster-os directory
+3. Install dependencies:
+```bash
+npm install
 ```
 
-#### Testing Checklist:
+This installs all required packages for running the system.
 
-All of these have been tested and work:
-- **Start Load Balancer** - it spawn on port 3000
-- **Add Workers** - they auto-connect using heartbeat detection
-- **Metrics Update** - show real-time worker count
-- **Submit Jobs** - the whole process work end-to-end
-- **Correct Results** - array get doubled correctly like [1,2,3] become [2,4,6]
-- **Remove Workers** - they shutdown gracefully and metrics update
-- **Stop Load Balancer** - it clean shutdown and reset everything to 0
-- **Restart Cycle** - system fully recover and workers reconnect without issue
+## Running Options
 
----
+### Option A — Live Deployment (no setup required)
 
-### Alternative: Command-Line Interface (CLI)
+The app is deployed at:
 
-If you prefer using the CLI instead of the dashboard:
+```
+https://cluster-os.vercel.app
+```
 
-**Terminal 1: Start DNS Router**
-```powershell
-cd cluster-os
+Uses a serverless backend (Vercel Functions) with a simulated in-memory cluster. No local installation needed.
+
+### Option B — Local Full Cluster
+
+The easiest way to run the entire system locally is:
+
+```bash
+npm start
+```
+
+This command starts:
+- DNS Router (service discovery)
+- Load Balancer (main kernel)
+- One Worker Node (processes jobs)
+- Dashboard (web interface)
+
+All services start in parallel and output colored messages so you can track what's happening.
+
+## Access the Local Dashboard
+
+After running `npm start`, open your browser and go to:
+
+```
+http://localhost:5000
+```
+
+You should see the ClusterOS Dashboard with:
+- System Controls (Start/Stop Load Balancer, Add/Remove Workers)
+- Cluster Metrics (Healthy workers, active jobs, queued jobs)
+- System Health (Real-time graphs showing utilization, throughput, queue depth)
+- Circuit Breaker States (Health status of each worker)
+- Job Submission (Submit jobs and view results)
+- Dynamic Tuning (Adjust system parameters)
+
+## How to Use the Dashboard
+
+1. Start the system with `npm start`
+2. Open http://localhost:5000
+3. Click "Start Load Balancer" to begin
+4. Click "Add Worker" 2-3 times to add multiple workers
+5. Submit a job by entering a JSON array like `[1,2,3,4,5]` in the Job Payload field
+6. Click "Dispatch Job" to send it
+7. View the result in the Results section below
+8. Watch the real-time graphs update as jobs are processed
+9. Use the hamburger menu (three lines) to open Dynamic Tuning and adjust coefficients
+
+The dashboard updates automatically every 500 milliseconds, so you can see system behavior in real-time.
+
+## What Each Metric Means
+
+- **Healthy Workers**: Number of workers responding correctly / total workers
+- **Total Workers**: Total number of worker machines in the cluster
+- **Active Jobs**: Number of jobs currently being processed
+- **Queued Jobs**: Number of jobs waiting to be assigned
+- **Cluster Utilization**: Percentage showing how much the cluster is being used (0-100%)
+- **Request Throughput**: Jobs being processed per second
+- **Queue Depth**: Count of pending jobs
+
+## Stop the System
+
+Press Ctrl+C in the terminal to stop all services.
+
+## Alternative Startup Options
+
+If you want more control, you can start services individually:
+
+**Start DNS Router Only:**
+```bash
 npm run start:dns
 ```
 
-Terminal 2 (wait 1s):
-```
+**Start Load Balancer Only:**
+```bash
 npm run start:lb
 ```
 
-Terminal 3 (wait 2s):
-```
+**Start Worker Nodes:**
+```bash
 npm run start:worker
 ```
 
-Terminal 4 (wait 2s):
-```
-npm run start:worker
-```
-
-Terminal 5 (wait 3s):
-```
-npm run start:client
+**Start Dashboard Only:**
+```bash
+npm run start:dashboard
 ```
 
-Then type commands:
-```
-submit [1,2,3,4,5]
-status
-exit
+**Start with 3 Workers:**
+```bash
+npm run start:cluster
 ```
 
----
+Note: Services must be started in order (DNS Router, then Load Balancer, then Workers/Dashboard).
 
-### Direct TypeScript Execution (If npm scripts don't work)
+
+## Testing
+
+To run automated tests:
+
+```bash
+npm test
+```
+
+To run tests in UI mode with visualization:
+
+```bash
+npm run test:ui
+```
+
+To view test results:
+
+```bash
+npm run test:report
+```
+
+Note: Before running tests, start the services in separate terminals:
+- Terminal 1: `npm run start:dns`
+- Terminal 2: `npm run start:lb`
+- Terminal 3: `npm run start:dashboard`
+- Terminal 4: `SKIP_WEB_SERVER=1 npm test`
+
+## Understanding the Architecture
+
+```
+Browser Client
+    |
+    v
+DNS Router (Port 2000/3000)
+    |
+    v
+Load Balancer (Port 3010)
+    |
+    +----> Worker Node 1
+    |
+    +----> Worker Node 2
+    |
+    +----> Worker Node 3
+    |
+    v
+Metrics Server (Port 9001)
+```
+
+When you submit a job through the dashboard:
+1. The job goes to the Load Balancer
+2. The Load Balancer picks the best available Worker
+3. The Worker processes the job
+4. Results return to the Load Balancer
+5. Results are delivered back to the Dashboard
+6. The Dashboard displays the results
+
+## Common Issues
+
+**Dashboard won't connect:**
+- Make sure Load Balancer is running
+- Check that it's on port 3010
+- Wait a few seconds and refresh the browser
+
+**Workers won't add:**
+- Load Balancer must be running first
+- Check that DNS Router started successfully
+
+**Jobs don't process:**
+- At least one worker must be added
+- Load Balancer must be running
+- Check for error messages in the terminal
+
+## Development
+
+To modify the system:
+1. Edit TypeScript files in `src/`
+2. The system auto-reloads using ts-node
+3. Changes take effect on the next request
+4. Check terminal output for errors
+
+## Further Learning
+
+This project demonstrates concepts from:
+- Distributed Systems textbooks
+- Microservices architecture
+- Fault tolerance patterns
+- Real-time monitoring systems
+
+Study the source code to see how each concept is implemented. Start with `src/kernel/LoadBalancer.ts` to understand the core logic.
+| **Dashboard** | `src/dashboard/Dashboard.ts` | Web UI for managing the cluster |
+| **Client** | `src/client/UserClient.ts` | CLI for submitting jobs and checking status |
+
+## Network Ports
+
+| Port | Component | Purpose |
+|------|-----------|---------|
+| 2000 | DNS Router | Client entry point |
+| 3000 | DNS Router | Load balancer registration |
+| 3010 | Load Balancer | Worker and client connections |
+| 5000 | Dashboard | Web UI |
+| 9001 | Metrics Server | HTTP metrics endpoint (JSON format) |
+
+**Metrics Endpoint Example:**
+
+View live metrics in your browser or via curl:
+
+```bash
+curl http://localhost:9001/metrics
+```
+
+Returns:
+```json
+{
+  "healthyWorkers": 4,
+  "totalWorkers": 4,
+  "activeJobs": 0,
+  "queuedJobs": 0,
+  "circuitBreakerStates": {
+    "worker-0": "CLOSED",
+    "worker-1": "CLOSED",
+    "worker-2": "CLOSED",
+    "worker-3": "CLOSED"
+  }
+}
+```
+
+## Testing the System
+
+### Verify Active Jobs Metric is Working
+
+The **Active Jobs** metric tracks the number of job elements currently being processed:
+
+1. Open the dashboard: `http://localhost:5000`
+2. Note the "Active Jobs" value (should be 0 initially)
+3. Enter a job: `[10, 20, 30]` (3 elements)
+4. Click "Submit Job"
+5. **Watch the Active Jobs metric INCREASE** immediately (will show 2+)
+6. **Wait 2-3 seconds** as the load balancer processes the job elements
+7. **Watch the Active Jobs metric DECREASE** back to 0 as jobs complete
+
+**Expected Behavior:**
+- Before submit: Active Jobs = 0
+- After submit: Active Jobs = 2 or higher
+- After completion: Active Jobs = 0 (returns in 2-3 seconds)
+
+If you see this pattern, Active Jobs is working correctly!
+
+### Verify Queued Jobs Metric
+
+The **Queued Jobs** metric shows how many jobs are waiting for dispatch:
+
+1. Submit 5 large jobs rapidly by clicking "Submit Job" 5 times
+2. Watch "Queued Jobs" counter
+3. If system has capacity: Queued Jobs remains at 0 (all jobs dispatched immediately)
+4. If system is saturated: Queued Jobs will increase
+5. As workers complete jobs, Queued Jobs decreases
+
+### Simple Test: Array Doubling
+
+The worker nodes double all elements in an array:
+
+```
+Input:  [1, 2, 3, 4, 5]
+Output: [2, 4, 6, 8, 10]
+```
+
+### Test Failure Detection
+
+With workers running:
+1. Kill a worker process (Ctrl+C in its terminal)
+2. Wait a few seconds
+3. The failure detector marks it as suspected failed
+4. New jobs are routed to healthy workers
+
+### Test Load Balancing
+
+Submit multiple jobs:
+1. Submit a job while one is processing
+2. The load balancer distributes to the least-busy worker
+3. Check metrics: `curl http://localhost:9001/metrics`
+
+## Optional Helper Scripts
+
+In `scripts/` there are two helper scripts for quick testing:
+
+- `submit_job.js` — Submit a single job from the terminal
+- `submit_multiple_jobs.js` — Submit many jobs in a loop
+
+These are optional; the dashboard and CLI are the main ways to interact with the system.
+
+## Example Session
 
 ```powershell
 # Terminal 1
-cd cluster-os && npx ts-node src/network/DNSRouter.ts
+npm run start:dns
 
-# Terminal 2 (wait 1s)
-cd cluster-os && npx ts-node src/kernel/LoadBalancer.ts
+# Terminal 2
+npm run start:lb
 
-# Terminal 3 (wait 2s)
-cd cluster-os && npx ts-node src/worker/WorkerNode.ts
+# Terminal 3 & 4
+npm run start:worker
+npm run start:worker
 
-# Terminal 4 (wait 2s)
-cd cluster-os && npx ts-node src/worker/WorkerNode.ts
+# Terminal 5
+npm run start:client
 
-# Terminal 5 (wait 3s)
-cd cluster-os && npx ts-node src/client/UserClient.ts
+# In the client terminal:
+ClusterOS > submit [10, 20, 30]
+Job submitted with ID: abc123-...
+ClusterOS > status
+Healthy workers: 2, Active jobs: 1, Queued: 0
+ClusterOS > # Wait for result...
 ```
 
-Then just type commands:
-```
+## Notes
 
-Then open your browser to `http://localhost:5000`
-
-**Dashboard Features:**
-- **Start/Stop Controls**: Launch Load Balancer and Worker nodes with single clicks
-- **Real-time Metrics**: View healthy workers, active jobs, and queue status
-- **Job Submission**: Submit jobs directly from the UI and see results
-- **Circuit Breaker Status**: Monitor the state of each worker (CLOSED, OPEN, HALF_OPEN)
-- **Auto-refresh**: All metrics update automatically every 2 seconds
-
-**Recommended Workflow:**
-
-1. **Start Dashboard** (one terminal):
-   ```powershell
-   npm run start:dashboard
-   ```
-
-2. **Open Browser** (any browser):
-   ```
-   http://localhost:5000
-   ```
-
-3. **Use Dashboard**:
-   - Click "Start Load Balancer" (wait 2-3 seconds)
-   - Click "Add Worker" 2-3 times (wait 2 seconds between clicks)
-   - Enter array in job submission: `[1,2,3,4,5]`
-   - Click "Submit" and watch result appear
-   - Monitor healthy workers and circuit breaker status in real-time
-   - Add/remove workers while system runs
-
-**Dashboard Architecture:**
-- **Dashboard.ts**: Node.js HTTP server managing processes and connecting to LoadBalancer
-- **dashboard.html**: Student-written HTML/CSS/JavaScript frontend
-- **Port 5000**: Dashboard web interface
-- **Port 9001**: LoadBalancer metrics endpoint
-- **Port 3000**: LoadBalancer TCP (spawned in background)
-
-**Testing Checklist (Integration Testing):**
-- ✅ Click "Start Load Balancer" → Listens on port 3000
-- ✅ Click "Add Worker" → Workers connect and send heartbeats
-- ✅ View metrics → Healthy workers count increases
-- ✅ Submit job `[2,4,6]` → Result shows `[4,8,12]` (doubled)
-- ✅ Check circuit breaker → Shows CLOSED for healthy workers
-- ✅ Click "Remove Worker" → Healthy workers decrease
-- ✅ Stop and restart LB → Metrics reset to 0
-- ✅ Submit multiple jobs → Queue updates in real-time
-
-## Cross-Platform Support
-
-ClusterOS runs identically on **Windows, macOS, and Linux**. Simply use your platform's default terminal (PowerShell, bash, zsh, etc.) and run the npm scripts as shown above.
-
-## Component Output Examples
-
-### DNS Router Startup
-
-```
-_______________________________________________
-_______________  DNS Router   _________________
-||      DNS Router listening on port 2000      ||
-||      Registered 3 LoadBalancer instances    ||
-__________________________________________________
-```
-
-## How This Work
-
-1. Workers connect and send heartbeats to the Load Balancer every 2 seconds
-2. Load Balancer keep track of which workers is still alive
-3. When user submit a job (like an array of numbers)
-4. Load Balancer route to the worker that got the least jobs
-5. Worker double each number in the array
-6. Result get sent back
-
-## Project Structure
-
-```
-_______________________________________________
-_________________   User Client   _____________
-||          User Client started                ||
-||  ID: client-b0e21dee-dc46-41ae-8835-8abff28e028f||
-||  Connected to DNS Router (localhost:2000)    ||
-||          Type "help" for available commands ||
-__________________________________________________
-
-ClusterOS > 
-```
-
-## Testing It Out
-
-### Using the Dashboard (Recommended)
-
-1. Run the dashboard: `npm run start:dashboard`
-2. Open `http://localhost:5000` in your browser
-3. Click the "Start Load Balancer" button - should say it connected
-4. Click "Add Worker" button twice (so you got 2 workers)
-5. Now you should see both workers in the list showing as "healthy"
-6. Type some numbers in the job input field like `[1,2,3]` or `[10,20]`
-7. Click "Submit Job" button
-8. Wait a moment and you should see the result appear - each number get doubled
-9. For example `[1,2,3]` become `[2,4,6]`
-
-### Command Line Testing
-
-If you prefer command line you can submit jobs using the client terminal after everything running. You can type `submit [1,2,3,4,5]` and it gonna do the same thing as the dashboard.
-
-The dashboard show real-time metrics too - you can see how many jobs is running, how many completed, and worker status and stuff.
+- All state is in-memory; restarting components loses job history
+- Workers send heartbeats every 2 seconds
+- Jobs timeout after 10 seconds with automatic retry (up to 3 attempts)
+- The system is designed for local development and testing
+- Job results are only kept while components are running

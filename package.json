@@ -1,0 +1,50 @@
+{
+  "name": "clusteros-final-project",
+  "version": "1.0.0",
+  "description": "ClusterOS - Distributed Systems Simulation with Interactive Dashboard UI",
+  "main": "cluster-os/dist/kernel/LoadBalancer.js",
+  "scripts": {
+    "install:all": "npm install && cd cluster-os && npm install",
+    "start": "cd cluster-os && npm run start",
+    "start:all": "cd cluster-os && npm run start:all",
+    "start:core": "cd cluster-os && npm run start:core",
+    "start:cluster": "cd cluster-os && npm run start:cluster",
+    "start:dns": "cd cluster-os && npm run start:dns",
+    "start:lb": "cd cluster-os && npm run start:lb",
+    "start:worker": "cd cluster-os && npm run start:worker",
+    "start:dashboard": "cd cluster-os && npm run start:dashboard",
+    "build": "cd cluster-os && npm run build",
+    "test": "cd cluster-os && npm run test",
+    "test:ui": "cd cluster-os && npm run test:ui",
+    "test:debug": "cd cluster-os && npm run test:debug",
+    "test:headed": "cd cluster-os && npm run test:headed",
+    "test:report": "cd cluster-os && npm run test:report"
+  },
+  "keywords": [
+    "distributed-systems",
+    "load-balancer",
+    "cluster",
+    "fault-tolerance",
+    "circuit-breaker",
+    "job-scheduling",
+    "dashboard-ui",
+    "real-time-monitoring"
+  ],
+  "author": "",
+  "license": "ISC",
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/clusteros"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/clusteros/issues"
+  },
+  "homepage": "https://github.com/yourusername/clusteros#readme"
+}

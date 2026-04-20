@@ -3,19 +3,35 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
+    "build": "npx tsc && cp src/dashboard/dashboard.html public/index.html && cp src/dashboard/dashboard.css public/dashboard.css && cp src/dashboard/dashboard-client.js public/dashboard-client.js && mkdir -p public/assets && cp src/dashboard/assets/banner.svg public/assets/banner.svg && cp src/dashboard/assets/favicon.svg public/assets/favicon.svg",
+    "start": "concurrently -n DNS,LB,WORKER,DASHBOARD -c blue,green,yellow,magenta \"npm run start:dns\" \"npm run start:lb\" \"npm run start:worker\" \"npm run start:dashboard\"",
+    "start:all": "concurrently -n DNS,LB,WORKER,DASHBOARD -c blue,green,yellow,magenta \"npm run start:dns\" \"npm run start:lb\" \"npm run start:worker\" \"npm run start:dashboard\"",
+    "start:core": "concurrently -n DNS,LB,DASHBOARD -c blue,green,magenta \"npm run start:dns\" \"npm run start:lb\" \"npm run start:dashboard\"",
+    "start:render": "node api/backend.js",
+    "start:cluster": "concurrently -n DNS,LB,WORKER1,WORKER2,WORKER3,DASHBOARD -c blue,green,yellow,cyan,white,magenta \"npm run start:dns\" \"npm run start:lb\" \"npm run start:worker\" \"npm run start:worker\" \"npm run start:worker\" \"npm run start:dashboard\"",
     "start:dns": "node -r ts-node/register src/network/DNSRouter.ts",
     "start:lb": "node -r ts-node/register src/kernel/LoadBalancer.ts",
     "start:worker": "node -r ts-node/register src/worker/WorkerNode.ts",
     "start:client": "node -r ts-node/register src/client/UserClient.ts",
     "start:dashboard": "node -r ts-node/register src/dashboard/Dashboard.ts",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
+    "test:debug": "playwright test --debug",
+    "test:headed": "playwright test --headed",
+    "test:report": "playwright show-report"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2"
+  },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "@types/node": "^25.3.0",
+    "concurrently": "^9.2.1",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
   }

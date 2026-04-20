@@ -1,88 +1,114 @@
 import { randomUUID } from 'node:crypto';
 import { ClientTCPTransport } from '../transport/TCPTransport';
+import { LamportClock } from '../kernel/lamportClock';
 import { ClusterMessage, HeartbeatPayload } from '../common/types';
 
+// worker node - processes jobs
 class WorkerNode {
   private transport: ClientTCPTransport;
-  private nodeId: string;
-  private activeJobCount = 0;
-  private cancelledJobs: Set<string> = new Set();
+  private workerId: string;
+  private lamportClock: LamportClock;
+  private jobsInProgress = 0;
+  private cancelledJobIds: Set<string> = new Set();
 
   constructor() {
     var self = this;
-    this.nodeId = randomUUID();
+    this.workerId = randomUUID();
+    this.lamportClock = new LamportClock(this.workerId);
 
-    // Establish connection to the Load Balancer
+    // connect to load balancer
     this.transport = new ClientTCPTransport('localhost', 3010);
     this.transport.setMessageHandler(this.handleMessage.bind(this));
 
+    // startup message
     console.clear();
     console.log('_______________________________________________');
     console.log('________________   Worker Node   ______________');
     console.log('||          Worker Node started                  ||');
-    var idStr = 'ID: ' + this.nodeId;
+    var idStr = 'ID: ' + this.workerId;
     var paddedId = idStr.padEnd(44);
     console.log('||  ' + paddedId + '||');
     console.log('__________________________________________________');
 
+    // send first heartbeat immediately
     this.sendHeartbeat();
+    
+    // then send heartbeats every 2 seconds
     setInterval(function() {
       self.sendHeartbeat();
     }, 2000);
   }
 
   private sendHeartbeat() {
-    var payload = {
-      activeJobs: this.activeJobCount
+    var time = this.lamportClock.increment();
+    var hbPayload = {
+      activeJobs: this.jobsInProgress
     };
-    var message = {
+    var hbMsg = {
       type: 'HEARTBEAT' as any,
-      senderId: this.nodeId,
+      senderId: this.workerId,
       requestId: '',
-      payload: payload
+      payload: hbPayload,
+      lamportTime: time,
+      nodeId: this.workerId
     } as ClusterMessage;
-    this.transport.send(message);
+    this.transport.send(hbMsg);
   }
 
   private handleMessage(message: ClusterMessage) {
     var self = this;
+    
+    // update local lamport clock
+    if (message.lamportTime !== undefined) {
+      this.lamportClock.update(message.lamportTime);
+    }
+
+    // check if this is a job message
     if (message.type === 'JOB_SUBMIT' || message.type === 'SUB_JOB_SUBMIT') {
-      this.activeJobCount++;
-      console.log('Job received');
+      this.jobsInProgress++;
+      console.log('[WorkerNode] Received job ' + message.requestId);
       
-      this.processJob(message).then(function(result) {
-        if (self.cancelledJobs.has(message.requestId)) {
-          self.cancelledJobs.delete(message.requestId);
-          console.log('Job cancelled');
+      // process the job
+      this.processJob(message).then(function(jobResult) {
+        // check if job was cancelled
+        if (self.cancelledJobIds.has(message.requestId)) {
+          self.cancelledJobIds.delete(message.requestId);
+          console.log('[WorkerNode] Job cancelled: ' + message.requestId);
         } else {
-          self.activeJobCount--;
-          var resultMessage = {
+          self.jobsInProgress--;
+          var resultTime = self.lamportClock.increment();
+          var resultMsg = {
             type: message.type === 'JOB_SUBMIT' ? 'JOB_RESULT' : 'SUB_JOB_RESULT',
-            senderId: self.nodeId,
+            senderId: self.workerId,
             requestId: message.requestId,
-            payload: result,
-            retryCount: message.retryCount || 0
+            payload: jobResult,
+            retryCount: message.retryCount || 0,
+            lamportTime: resultTime,
+            nodeId: self.workerId
           } as any as ClusterMessage;
-          self.transport.send(resultMessage);
-          console.log('Job done');
+          self.transport.send(resultMsg);
+          console.log('[WorkerNode] Job completed: ' + message.requestId);
         }
       });
     }
   }
 
   private processJob(message: ClusterMessage): Promise<any> {
-    var payload = message.payload;
+    var jobPayload = message.payload;
     var self = this;
     
     return new Promise(function(resolve) {
+      // simulate processing delay
       setTimeout(function() {
-        if (Array.isArray(payload)) {
-          var result = [];
-          for (var i = 0; i < payload.length; i++) {
-            result.push(payload[i] * 2);
+        if (Array.isArray(jobPayload)) {
+          var processed = [];
+          for (var i = 0; i < jobPayload.length; i++) {
+            // simple processing: multiply by 2
+            processed.push(jobPayload[i] * 2);
           }
-          resolve(result);
+          resolve(processed);
         } else {
+          // scalar job
           resolve({ result: 'done' });
         }
       }, 3000);
@@ -90,7 +116,7 @@ class WorkerNode {
   }
 
   cancelJob(requestId: string) {
-    this.cancelledJobs.add(requestId);
+    this.cancelledJobIds.add(requestId);
   }
 }
 

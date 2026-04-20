@@ -1,57 +1,57 @@
 import * as net from 'net';
 import { ClusterMessage } from '../common/types';
 
-// TCP server
+// TCP server for load balancer
 export class TCPTransport {
   private server: net.Server;
   private clients: Map<string, net.Socket> = new Map();
-  private messageHandler?: (id: string, message: ClusterMessage) => void;
-  private closureHandler?: (id: string) => void;
+  private msgHandler?: (id: string, message: ClusterMessage) => void;
+  private connClosedHandler?: (id: string) => void;
 
   constructor(port: number) {
-    this.server = net.createServer(function(socket) {
-      // id for connection
-      const id = this.generateId();
-      this.clients.set(id, socket);
+    this.server = net.createServer((socket) => {
+      // generate unique id for this connection
+      const connId = this.generateId();
+      this.clients.set(connId, socket);
 
-      let buffer = '';
+      let buf = '';
 
-      socket.on('data', function(data) {
-        buffer += data.toString();
+      socket.on('data', (data) => {
+        buf += data.toString();
 
-        let newlineIndex;
-        while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
-          const messageStr = buffer.slice(0, newlineIndex);
-          buffer = buffer.slice(newlineIndex + 1);
+        let idx;
+        while ((idx = buf.indexOf('\n')) !== -1) {
+          const msgStr = buf.slice(0, idx);
+          buf = buf.slice(idx + 1);
 
           try {
-            const message = JSON.parse(messageStr);
-            if (this.messageHandler) {
-              this.messageHandler(id, message);
+            const msg = JSON.parse(msgStr);
+            if (this.msgHandler) {
+              this.msgHandler(connId, msg);
             }
           } catch (e) {
-            console.log('error');
+            console.log('[TCPTransport] Failed to parse message: ' + e);
           }
         }
-      }.bind(this));
+      });
 
-      socket.on('close', function() {
-        this.clients.delete(id);
-        if (this.closureHandler) {
-          this.closureHandler(id);
+      socket.on('close', () => {
+        this.clients.delete(connId);
+        if (this.connClosedHandler) {
+          this.connClosedHandler(connId);
         }
-      }.bind(this));
+      });
 
-      socket.on('error', function(err) {
-        console.log('socket error');
-        this.clients.delete(id);
-        if (this.closureHandler) {
-          this.closureHandler(id);
+      socket.on('error', (err) => {
+        console.log('[TCPTransport] Socket error: ' + err.message);
+        this.clients.delete(connId);
+        if (this.connClosedHandler) {
+          this.connClosedHandler(connId);
         }
-      }.bind(this));
-    }.bind(this));
+      });
+    });
 
-    this.server.listen(port, function() {
+    this.server.listen(port, () => {
       console.clear();
       console.log('_______________________________________________');
       console.log('________________  Load Balancer   _____________');
@@ -60,31 +60,31 @@ export class TCPTransport {
     });
   }
 
-  // set message handler
+  // set up message handler
   setMessageHandler(handler: (id: string, message: ClusterMessage) => void) {
-    this.messageHandler = handler;
+    this.msgHandler = handler;
   }
 
-  // set closure handler
+  // handle when connection closes
   setConnectionClosureHandler(handler: (id: string) => void) {
-    this.closureHandler = handler;
+    this.connClosedHandler = handler;
   }
 
-  // send message
+  // send message to a client
   send(id: string, message: ClusterMessage) {
-    const socket = this.clients.get(id);
-    if (socket) {
-      socket.write(JSON.stringify(message) + '\n');
+    const s = this.clients.get(id);
+    if (s && !s.destroyed) {
+      s.write(JSON.stringify(message) + '\n');
     }
   }
 
-  // get client ids
+  // get list of all connected clients
   getClientIds(): string[] {
     return Array.from(this.clients.keys());
   }
 
   private generateId(): string {
-    return Math.random().toString(36).substr(2, 9);
+    return 'conn-' + Math.random().toString(36).substr(2, 9);
   }
 }
 
@@ -99,7 +99,7 @@ export class ClientTCPTransport {
       // connected
     });
 
-    this.socket.on('data', function(data) {
+    this.socket.on('data', function(data: any) {
       this.buffer += data.toString();
 
       let newlineIndex;
@@ -122,7 +122,7 @@ export class ClientTCPTransport {
       console.log('disconnected');
     });
 
-    this.socket.on('error', function(err) {
+    this.socket.on('error', function(err: any) {
       console.log('error');
     });
   }

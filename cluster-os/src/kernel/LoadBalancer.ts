@@ -1,6 +1,7 @@
 import { TCPTransport } from '../transport/TCPTransport';
 import { FailureDetector } from '../middleware/FailureDetector';
 import { Scheduler } from './Scheduler';
+import { LamportClock } from './lamportClock';
 import { ClusterMessage, JobContext, ClientAffinityRecord, CircuitBreakerStatus } from '../common/types';
 import { EventEmitter } from 'events';
 import * as http from 'http';
@@ -8,19 +9,23 @@ import * as net from 'net';
 
 class Dispatcher extends EventEmitter {
   private transport: TCPTransport;
-  private messageQueueByPriority: Map<string, Array<{ id: string; message: ClusterMessage }>> = new Map();
+  private msgQueues: Map<string, Array<{ id: string; message: ClusterMessage }>> = new Map();
 
   constructor(port: number) {
     super();
     this.transport = new TCPTransport(port);
     
-    this.messageQueueByPriority.set('HIGH', []);
-    this.messageQueueByPriority.set('NORMAL', []);
-    this.messageQueueByPriority.set('LOW', []);
+    // set up message queues for different priority levels
+    this.msgQueues.set('HIGH', []);
+    this.msgQueues.set('NORMAL', []);
+    this.msgQueues.set('LOW', []);
 
     this.transport.setMessageHandler(function(id, message) {
-      var priority = message.priority || 'NORMAL';
-      this.messageQueueByPriority.get(priority)!.push({ id: id, message: message });
+      var priorityLevel = message.priority || 'NORMAL';
+      var queue = this.msgQueues.get(priorityLevel);
+      if (queue) {
+        queue.push({ id: id, message: message });
+      }
       this.emit('messageQueued');
     }.bind(this));
 
@@ -30,24 +35,38 @@ class Dispatcher extends EventEmitter {
   }
 
   dequeueMessage()  {
-    var priorityOrder = ['HIGH', 'NORMAL', 'LOW'];
-    for (var i = 0; i < priorityOrder.length; i++) {
-      var priority = priorityOrder[i];
-      var queue = this.messageQueueByPriority.get(priority);
-      if (queue && queue.length > 0) {
-        return queue.shift() || null;
-      }
+    // check high priority first
+    var highQueue = this.msgQueues.get('HIGH');
+    if (highQueue && highQueue.length > 0) {
+      return highQueue.shift() || null;
     }
+    
+    // then normal
+    var normalQueue = this.msgQueues.get('NORMAL');
+    if (normalQueue && normalQueue.length > 0) {
+      return normalQueue.shift() || null;
+    }
+    
+    // finally low priority
+    var lowQueue = this.msgQueues.get('LOW');
+    if (lowQueue && lowQueue.length > 0) {
+      return lowQueue.shift() || null;
+    }
+    
     return null;
   }
 
   getQueueSize(): number {
-    var total = 0;
-    var queues = this.messageQueueByPriority.values();
-    for (var queue of queues) {
-      total += queue.length;
-    }
-    return total;
+    var count = 0;
+    var highQ = this.msgQueues.get('HIGH');
+    var normQ = this.msgQueues.get('NORMAL');
+    var lowQ = this.msgQueues.get('LOW');
+    
+    if (highQ) count += highQ.length;
+    if (normQ) count += normQ.length;
+    if (lowQ) count += lowQ.length;
+    
+    return count;
   }
 
   send(id: string, message: ClusterMessage) {
@@ -64,16 +83,17 @@ class Worker {
   private dispatcher: Dispatcher;
   private failureDetector: FailureDetector;
   private scheduler: Scheduler;
+  private clock: LamportClock;
   private requestToClient: Map<string, string> = new Map();
   private nodeConnections: Map<string, boolean> = new Map();
-  private aggregationMap: Map<string, { totalChunks: number; receivedChunks: number; aggregatedData: any[] }> = new Map();
+  private aggregationMap: Map<string, { totalChunks: number; receivedChunks: number; chunkResults: any[][] }> = new Map();
   private jobContextMap: Map<string, JobContext> = new Map();
   private jobTimeouts: Map<string, NodeJS.Timeout> = new Map();
   private circuitBreakerState: Map<string, CircuitBreakerStatus> = new Map();
   private circuitBreakerConfig = {
     failureThreshold: 5,
     successThreshold: 2,
-    openTimeout: 30000,
+    openTimeout: 5000,
     halfOpenProbeInterval: 5000
   };
   private running = true;
@@ -82,13 +102,18 @@ class Worker {
     id: number,
     dispatcher: Dispatcher,
     failureDetector: FailureDetector,
-    scheduler: Scheduler
+    scheduler: Scheduler,
+    onJobCompleted?: () => void
   ) {
     this.id = id;
     this.dispatcher = dispatcher;
     this.failureDetector = failureDetector;
     this.scheduler = scheduler;
+    this.clock = new LamportClock('loadBalancer-' + id);
+    this.onJobCompleted = onJobCompleted;
   }
+
+  private onJobCompleted?: () => void;
 
   start() {
     var self = this;
@@ -103,6 +128,9 @@ class Worker {
     };
 
     self.dispatcher.on('messageQueued', processNextMessage);
+    self.dispatcher.on('connectionClosed', function(id) {
+      self.nodeConnections.delete(id);
+    });
     processNextMessage();
 
     var self = this;
@@ -114,23 +142,42 @@ class Worker {
   private processMessage(id: string, message: ClusterMessage) {
     this.nodeConnections.set(id, true);
 
+    if (message.lamportTime !== undefined) {
+      this.clock.update(message.lamportTime);
+    }
+
     if (message.type === 'HEARTBEAT') {
-      this.failureDetector.updateHeartbeat(id, message.payload);
+      var workerId = message.senderId || message.nodeId || id;
+      this.failureDetector.updateHeartbeat(workerId, message.payload, message.lamportTime);
     } else if (message.type === 'JOB_SUBMIT') {
       this.handleJobSubmit(id, message);
     } else if (message.type === 'SUB_JOB_RESULT') {
       this.handleSubJobResult(id, message);
     } else if (message.type === 'CLUSTER_STATUS') {
       var healthyNodes = this.failureDetector.getHealthyNodes();
+      var lamportTime = this.clock.increment();
       var reply = {
         type: 'CLUSTER_STATUS_REPLY' as any,
         senderId: 'load-balancer',
         requestId: message.requestId,
         payload: healthyNodes,
-        priority: 'HIGH'
+        priority: 'HIGH',
+        lamportTime: lamportTime,
+        nodeId: this.clock.getNodeId()
       } as ClusterMessage;
       this.dispatcher.send(id, reply);
       console.log('[Worker-' + this.id + '] Sent cluster status to client: ' + healthyNodes.length + ' healthy nodes');
+    } else if (message.type === 'REMOVE_NODE') {
+      var nodeId = (message as any).nodeId;
+      this.failureDetector.removeNode(nodeId);
+      console.log('[LoadBalancer] Removed node ' + nodeId + ' from failure detector');
+    } else if (message.type === 'REMOVE_UNHEALTHY_NODE') {
+      var removedId = this.failureDetector.removeMostUnhealthyNode();
+      if (removedId) {
+        console.log('[LoadBalancer] Removed most unhealthy node: ' + removedId);
+      } else {
+        console.log('[LoadBalancer] No unhealthy nodes to remove');
+      }
     } else if (message.type === 'JOB_RESULT') {
       var clientId = this.requestToClient.get(message.requestId);
       var jobContext = this.jobContextMap.get(message.requestId);
@@ -141,6 +188,9 @@ class Worker {
       
       if (clientId && this.nodeConnections.get(clientId)) {
         this.dispatcher.send(clientId, message);
+        if (this.onJobCompleted) {
+          this.onJobCompleted();
+        }
         console.log('[Worker-' + this.id + '] Delivered result for job ' + message.requestId + ' to client ' + clientId);
         this.requestToClient.delete(message.requestId);
         this.clearJobTimeout(message.requestId);
@@ -183,6 +233,9 @@ class Worker {
       if (workerId) {
         jobContext.assignedWorker = workerId;
         this.requestToClient.set(message.requestId, clientId);
+        var lamportTime = this.clock.increment();
+        message.lamportTime = lamportTime;
+        message.nodeId = this.clock.getNodeId();
         this.dispatcher.send(workerId, message);
         console.log('[Worker-' + this.id + '] Routed job ' + message.requestId + ' to worker ' + workerId);
       } else {
@@ -193,7 +246,12 @@ class Worker {
 
   private handleJobTimeout(jobContext: JobContext) {
     if (jobContext.assignedWorker) {
+      console.log('[Worker-' + this.id + '] Job ' + jobContext.message.requestId + ' timed out on worker ' + jobContext.assignedWorker + ' | Recording failure...');
       this.recordWorkerFailure(jobContext.assignedWorker);
+      var cbState = this.circuitBreakerState.get(jobContext.assignedWorker);
+      if (cbState) {
+        console.log('[Worker-' + this.id + '] Worker ' + jobContext.assignedWorker + ' failure count: ' + cbState.consecutiveFailures + ' / ' + this.circuitBreakerConfig.failureThreshold);
+      }
     }
 
     if (jobContext.retryCount < jobContext.maxRetries) {
@@ -211,6 +269,9 @@ class Worker {
       if (workerId) {
         console.log('[Worker-' + this.id + '] Retrying job ' + jobContext.requestId + ' (attempt ' + jobContext.retryCount + '/' + jobContext.maxRetries + ') on worker ' + workerId);
         jobContext.assignedWorker = workerId;
+        var lamportTime = this.clock.increment();
+        (retryMessage as any).lamportTime = lamportTime;
+        (retryMessage as any).nodeId = this.clock.getNodeId();
         this.dispatcher.send(workerId, retryMessage);
 
         var self = this;
@@ -232,11 +293,14 @@ class Worker {
   private sendFailureResultToClient(jobContext: JobContext) {
     var clientId = this.requestToClient.get(jobContext.requestId);
     if (clientId && this.nodeConnections.get(clientId)) {
+      var lamportTime = this.clock.increment();
       var failureResult = {
         type: 'JOB_RESULT' as any,
         senderId: 'load-balancer',
         requestId: jobContext.requestId,
-        payload: { error: 'Job failed after maximum retries', retryCount: jobContext.retryCount }
+        payload: { error: 'Job failed after maximum retries', retryCount: jobContext.retryCount },
+        lamportTime: lamportTime,
+        nodeId: this.clock.getNodeId()
       } as ClusterMessage;
       this.dispatcher.send(clientId, failureResult);
       console.log('[Worker-' + this.id + '] Sent failure result for job ' + jobContext.requestId + ' to client ' + clientId);
@@ -273,20 +337,23 @@ class Worker {
     this.aggregationMap.set(message.requestId, {
       totalChunks: chunks.length,
       receivedChunks: 0,
-      aggregatedData: []
+      chunkResults: new Array(chunks.length)
     });
     this.requestToClient.set(message.requestId, clientId);
 
     for (var index = 0; index < chunks.length; index++) {
       var chunk = chunks[index];
       var worker = healthyNodes[index % healthyNodes.length];
+      var lamportTime = this.clock.increment();
       var subMessage = {
         type: 'SUB_JOB_SUBMIT' as any,
         senderId: message.senderId,
         requestId: message.requestId + '-chunk-' + index,
         payload: chunk,
         retryCount: message.retryCount || 0,
-        maxRetries: message.maxRetries || 3
+        maxRetries: message.maxRetries || 3,
+        lamportTime: lamportTime,
+        nodeId: this.clock.getNodeId()
       } as ClusterMessage;
       this.dispatcher.send(worker.id, subMessage);
       console.log('Dispatched chunk');
@@ -312,10 +379,13 @@ class Worker {
     return out;
   }
 
-  private handleSubJobResult(workerId: string, message: ClusterMessage) {
+  private handleSubJobResult(connId: string, message: ClusterMessage) {
+    var workerId = message.senderId || message.nodeId || connId;
     this.recordWorkerSuccess(workerId);
     
     var baseRequestId = message.requestId.split('-chunk-')[0];
+    var chunkIndexText = message.requestId.split('-chunk-')[1];
+    var chunkIndex = parseInt(chunkIndexText, 10);
     var aggregation = this.aggregationMap.get(baseRequestId);
 
     if (!aggregation) {
@@ -323,8 +393,10 @@ class Worker {
       return;
     }
 
-    for (var i = 0; i < message.payload.length; i++) {
-      aggregation.aggregatedData.push(message.payload[i]);
+    if (!isNaN(chunkIndex)) {
+      aggregation.chunkResults[chunkIndex] = message.payload;
+    } else {
+      aggregation.chunkResults.push(message.payload);
     }
     aggregation.receivedChunks++;
 
@@ -333,13 +405,26 @@ class Worker {
     if (aggregation.receivedChunks === aggregation.totalChunks) {
       var clientId = this.requestToClient.get(baseRequestId);
       if (clientId && this.nodeConnections.get(clientId)) {
-        var finalResult = {
+        var orderedResult = [];
+        for (var i = 0; i < aggregation.chunkResults.length; i++) {
+          var chunkResult = aggregation.chunkResults[i] || [];
+          for (var j = 0; j < chunkResult.length; j++) {
+            orderedResult.push(chunkResult[j]);
+          }
+        }
+        var lamportTime = this.clock.increment();
+        var resultMessage = {
           type: 'JOB_RESULT' as any,
           senderId: 'load-balancer',
           requestId: baseRequestId,
-          payload: aggregation.aggregatedData
+          payload: orderedResult,
+          lamportTime: lamportTime,
+          nodeId: this.clock.getNodeId()
         } as ClusterMessage;
-        this.dispatcher.send(clientId, finalResult);
+        this.dispatcher.send(clientId, resultMessage);
+        if (this.onJobCompleted) {
+          this.onJobCompleted();
+        }
         console.log('[Worker-' + this.id + '] Delivered aggregated result for job ' + baseRequestId + ' to client ' + clientId);
       }
 
@@ -406,22 +491,6 @@ class Worker {
     }
   }
 
-  private getCircuitBreakerState(workerId: string) {
-    var state = this.circuitBreakerState.get(workerId);
-    if (!state) return 'CLOSED';
-
-    if (state.state === 'OPEN') {
-      var timeSinceOpen = Date.now() - state.lastFailureTime;
-      if (timeSinceOpen >= this.circuitBreakerConfig.openTimeout) {
-        state.state = 'HALF_OPEN';
-        state.probeAttempts = 0;
-        console.log('[Worker-' + this.id + '] Circuit breaker for ' + workerId + ' transitioned to HALF_OPEN');
-      }
-    }
-
-    return state.state;
-  }
-
   stop() {
     this.running = false;
     var handles = this.jobTimeouts.values();
@@ -442,6 +511,7 @@ class LoadBalancer {
   private lbId: string;
   private lbPort: number;
   private dnsRegistered = false;
+  private completedJobsTotal: number = 0;
 
   constructor(port: number, workerPoolSize: number = 4, dnsHost: string = 'localhost', dnsRegistrationPort: number = 3000) {
     this.workerPoolSize = workerPoolSize;
@@ -555,8 +625,11 @@ class LoadBalancer {
   }
 
   private initializeWorkerPool() {
+    var self = this;
     for (var i = 0; i < this.workerPoolSize; i++) {
-      var worker = new Worker(i, this.dispatcher, this.failureDetector, this.scheduler);
+      var worker = new Worker(i, this.dispatcher, this.failureDetector, this.scheduler, function() {
+        self.completedJobsTotal++;
+      });
       worker.start();
       this.workers.push(worker);
     }
@@ -587,6 +660,8 @@ class LoadBalancer {
           activeJobs += (self.workers[i] as any).getActiveJobsCount();
         }
         var circuitBreakerStates = {};
+        
+        // First, collect circuit breaker states from all workers
         for (var i = 0; i < self.workers.length; i++) {
           var w = self.workers[i];
           if (typeof (w as any).getCircuitBreakerStates === 'function') {
@@ -596,20 +671,35 @@ class LoadBalancer {
             }
           }
         }
+        
+        // Initialize circuit breaker states for any healthy nodes that don't have states yet
+        var allHealthyNodes = self.failureDetector.getHealthyNodes();
+        for (var h = 0; h < allHealthyNodes.length; h++) {
+          var nodeId = allHealthyNodes[h];
+          if (!circuitBreakerStates.hasOwnProperty(nodeId)) {
+            circuitBreakerStates[nodeId] = 'CLOSED';
+          }
+        }
 
         var queuedJobs = self.dispatcher.getQueueSize();
-        var healthyNodes = self.failureDetector.getHealthyNodes().length;
+        var healthyNodes = allHealthyNodes.length;
+        var totalWorkerCount = self.workers.length;
+        
+        if (healthyNodes > totalWorkerCount) {
+          healthyNodes = totalWorkerCount;
+        }
 
         var metrics = {
           healthyWorkers: healthyNodes,
-          totalWorkers: self.workerPoolSize,
+          totalWorkers: totalWorkerCount,
           activeJobs: activeJobs,
           queuedJobs: queuedJobs,
+          completedJobsTotal: this.completedJobsTotal,
           circuitBreakerStates: circuitBreakerStates,
           timestamp: Date.now()
         };
 
-        console.log('[LoadBalancer] Metrics request: active=' + activeJobs + ', queued=' + queuedJobs + ', healthy=' + healthyNodes + '/' + self.workerPoolSize);
+        console.log('[LoadBalancer] Metrics request: active=' + activeJobs + ', queued=' + queuedJobs + ', healthy=' + healthyNodes + '/' + totalWorkerCount + ', circuit breakers=' + Object.keys(circuitBreakerStates).length);
         res.writeHead(200);
         res.end(JSON.stringify(metrics));
       } else {
@@ -647,3 +737,4 @@ console.log('__________________________________________________');
 // graceful shutdown on signals
 process.on('SIGTERM', function() { lb.shutdown(); });
 process.on('SIGINT', function() { lb.shutdown(); });
+

@@ -1,19 +1,24 @@
 import { HeartbeatPayload } from '../common/types';
 
 export class FailureDetector {
-  // node heartbeats
   private heartbeats: Map<string, number> = new Map();
+  private heartbeatLamportTimes: Map<string, number> = new Map();
   private nodeLoads: Map<string, number> = new Map();
   private heartbeatIntervals: Map<string, number[]> = new Map();
   private phiThreshold = 3.0;
   private maxIntervalHistory = 20;
 
-  updateHeartbeat(nodeId: string, payload?: HeartbeatPayload) {
+  updateHeartbeat(nodeId: string, payload?: HeartbeatPayload, lamportTime?: number) {
     var now = Date.now();
     var previousTime = this.heartbeats.get(nodeId);
     
     this.heartbeats.set(nodeId, now);
-    if (payload) {
+    console.log('[FailureDetector] Got heartbeat from ' + nodeId.substring(0,8) + ' at time ' + lamportTime);
+    
+    if (lamportTime !== undefined) {
+      this.heartbeatLamportTimes.set(nodeId, lamportTime);
+    }
+    if (payload !== undefined) {
       this.nodeLoads.set(nodeId, payload.activeJobs);
     }
 
@@ -66,19 +71,32 @@ export class FailureDetector {
 
     var zScore = (timeSinceLastHeartbeat - meanInterval) / stdDev;
     var phi = -Math.log10(Math.exp(-zScore) / (1 + Math.exp(-zScore))) + Math.log10(0.1);
+    phi = Math.max(0, Math.min(10, phi));
 
-    return Math.max(0, Math.min(10, phi));
+    if (phi > this.phiThreshold * 0.8) {
+      console.log(`[FailureDetector] Phi suspicion for ${nodeId.substring(0,8)}: ${phi.toFixed(2)} (threshold: ${this.phiThreshold}) | TimeSinceHB: ${timeSinceLastHeartbeat}ms, MeanInterval: ${meanInterval.toFixed(0)}ms`);
+    }
+
+    return phi;
   }
 
   getHealthyNodes(): string[] {
     const healthy: string[] = [];
+    const unhealthy: string[] = [];
     for (const [id] of this.heartbeats) {
       const phi = this.computePhiSuspicion(id);
       if (phi < this.phiThreshold) {
         healthy.push(id);
+      } else {
+        unhealthy.push(id);
+        console.log(`[FailureDetector] Node ${id.substring(0,8)} marked UNHEALTHY (Phi: ${phi.toFixed(2)} >= ${this.phiThreshold})`);
       }
     }
     return healthy;
+  }
+
+  getAllNodes(): string[] {
+    return Array.from(this.heartbeats.keys());
   }
 
   getNodeLoad(nodeId: string): number {
@@ -109,6 +127,29 @@ export class FailureDetector {
 
   getNodePhiSuspicion(nodeId: string): number {
     return this.computePhiSuspicion(nodeId);
+  }
+
+  removeNode(nodeId: string): void {
+    this.heartbeats.delete(nodeId);
+    this.nodeLoads.delete(nodeId);
+    this.heartbeatIntervals.delete(nodeId);
+  }
+
+  removeMostUnhealthyNode(): string | null {
+    let mostUnhealthyId: string | null = null;
+    let maxPhi = -1;
+    for (const id of this.heartbeats.keys()) {
+      const phi = this.computePhiSuspicion(id);
+      if (phi > maxPhi) {
+        maxPhi = phi;
+        mostUnhealthyId = id;
+      }
+    }
+    if (mostUnhealthyId) {
+      console.log(`[FailureDetector] REMOVING most unhealthy node ${mostUnhealthyId.substring(0,8)} with Phi: ${maxPhi.toFixed(2)}`);
+      this.removeNode(mostUnhealthyId);
+    }
+    return mostUnhealthyId;
   }
 
   setPhiThreshold(threshold: number) {

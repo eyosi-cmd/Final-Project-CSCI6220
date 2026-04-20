@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "buildCommand": "npm run build",
+  "outputDirectory": "public",
+  "rewrites": [
+    { "source": "/health",         "destination": "/api/backend" },
+    { "source": "/api/:path*",     "destination": "/api/backend" },
+    { "source": "/(.*)",           "destination": "/index.html" }
+  ]
+}

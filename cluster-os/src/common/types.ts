@@ -1,6 +1,6 @@
 // message type
 export interface ClusterMessage {
-  type: 'HEARTBEAT' | 'JOB_SUBMIT' | 'JOB_RESULT' | 'SUB_JOB_SUBMIT' | 'SUB_JOB_RESULT' | 'CLUSTER_STATUS' | 'CLUSTER_STATUS_REPLY' | 'REGISTER_LB' | 'DEREGISTER_LB' | 'REGISTER_LB_ACK';
+  type: 'HEARTBEAT' | 'JOB_SUBMIT' | 'JOB_RESULT' | 'SUB_JOB_SUBMIT' | 'SUB_JOB_RESULT' | 'CLUSTER_STATUS' | 'CLUSTER_STATUS_REPLY' | 'REGISTER_LB' | 'DEREGISTER_LB' | 'REGISTER_LB_ACK' | 'REMOVE_NODE' | 'REMOVE_UNHEALTHY_NODE';
   senderId: string;
   requestId: string;
   payload: any;
@@ -8,6 +8,8 @@ export interface ClusterMessage {
   retryCount?: number;
   maxRetries?: number;
   clientAffinityHint?: string;
+  lamportTime?: number;
+  nodeId?: string;
 }
 
 // heartbeat
@@ -45,4 +47,11 @@ export interface CircuitBreakerStatus {
   lastFailureTime: number;
   lastSuccessTime: number;
   probeAttempts: number;
+}
+
+export interface SocketHealthMetrics {
+  utilization: number;
+  healthy: boolean;
+  healthyConnections: number;
+  totalConnections: number;
 }

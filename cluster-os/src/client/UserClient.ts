@@ -3,82 +3,85 @@ import * as readline from 'readline';
 import { ClientTCPTransport } from '../transport/TCPTransport';
 import { ClusterMessage } from '../common/types';
 
-// user client
+// userclient
 class UserClient {
   private transport: ClientTCPTransport;
-  private rl: readline.Interface;
-  private clientId: string;
+  private readline: readline.Interface;
+  private myClientId: string;
 
-  constructor(dnsRouterHost: string = 'localhost', dnsRouterPort: number = 2000) {
+  constructor(dnsHost: string = 'localhost', dnsPort: number = 2000) {
     var self = this;
-    this.clientId = 'client-' + randomUUID();
+    this.myClientId = 'client-' + randomUUID();
 
-    // connect
-    this.transport = new ClientTCPTransport(dnsRouterHost, dnsRouterPort);
-    this.transport.setMessageHandler(function(msg) { self.handleMessage(msg); });
+    // set up connection to DNS router
+    this.transport = new ClientTCPTransport(dnsHost, dnsPort);
+    this.transport.setMessageHandler(function(msg) { 
+      self.handleMessage(msg); 
+    });
 
-    // readline
-    this.rl = readline.createInterface({
+    // set up readline interface
+    this.readline = readline.createInterface({
       input: process.stdin,
       output: process.stdout,
       prompt: 'ClusterOS > '
     });
 
-    // line handler
-    this.rl.on('line', function(line) {
-      self.handleCommand(line.trim());
+    // handle user input
+    this.readline.on('line', function(line) {
+      var trimmedLine = line.trim();
+      self.handleCommand(trimmedLine);
     });
 
-    // close handler
-    this.rl.on('close', function() {
+    // handle exit
+    this.readline.on('close', function() {
       console.log('Goodbye');
       self.transport.close();
       process.exit(0);
     });
 
-    // startup
+    // display startup message
     console.clear();
     console.log('_______________________________________________');
     console.log('_________________   User Client   _____________');
     console.log('||          User Client started                 ||');
-    var clientIdStr = 'ID: ' + this.clientId;
+    var clientIdStr = 'ID: ' + this.myClientId;
     var paddedClientId = clientIdStr.padEnd(44);
     console.log('||  ' + paddedClientId + '||');
     console.log('||  Connected to DNS Router (localhost:2000)    ||');
     console.log('||          Type "help" for available commands  ||');
     console.log('__________________________________________________');
-    this.rl.prompt();
+    this.readline.prompt();
   }
 
-  // handle commands
+  // parse and handle user commands
   private handleCommand(command: string) {
-    var parts = command.split(' ');
-    var cmd = parts[0].toLowerCase();
+    var cmdParts = command.split(' ');
+    var cmdName = cmdParts[0].toLowerCase();
 
-    if (cmd === 'submit') {
-      if (parts.length < 2) {
+    if (cmdName === 'submit') {
+      if (cmdParts.length < 2) {
         console.log('Usage: submit <data>');
-        this.rl.prompt();
+        this.readline.prompt();
         return;
       }
-      var data = '';
-      for (var i = 1; i < parts.length; i++) {
-        data += parts[i] + ' ';
+      var jobData = '';
+      for (var i = 1; i < cmdParts.length; i++) {
+        jobData += cmdParts[i] + ' ';
       }
-      this.sendJob(data.trim());
-    } else if (cmd === 'status') {
+      this.sendJob(jobData.trim());
+    } else if (cmdName === 'status') {
       this.requestStatus();
-    } else if (cmd === 'help') {
+    } else if (cmdName === 'help') {
       this.showHelp();
-    } else if (cmd === 'exit') {
-      this.rl.close();
+    } else if (cmdName === 'exit') {
+      this.readline.close();
     } else {
       console.log('Unknown command');
-      this.rl.prompt();
+      this.readline.prompt();
     }
   }
 
-  // send job
+  // send job to cluster
   private sendJob(data: string) {
     var payload;
     try {
@@ -92,7 +95,7 @@ class UserClient {
 
     var message = {
       type: 'JOB_SUBMIT',
-      senderId: this.clientId,
+      senderId: this.myClientId,
       requestId: randomUUID(),
       payload: payload
     };
@@ -100,18 +103,18 @@ class UserClient {
     this.transport.send(message as unknown as ClusterMessage);
   }
 
-  // status
+  // request cluster status
   private requestStatus() {
     var message = {
       type: 'CLUSTER_STATUS',
-      senderId: this.clientId,
+      senderId: this.myClientId,
       requestId: randomUUID(),
       payload: {}
     };
     this.transport.send(message as unknown as ClusterMessage);
   }
 
-  // help
+  // show help
   private showHelp() {
     console.log('Commands:');
     console.log('  submit <data>');
@@ -119,21 +122,21 @@ class UserClient {
     console.log('  help');
     console.log('  exit');
     console.log('');
-    this.rl.prompt();
+    this.readline.prompt();
   }
 
-  // handle response
+  // handle message from cluster
   private handleMessage(message: ClusterMessage) {
     if (message.type === 'JOB_RESULT') {
       console.log('Job ' + message.requestId + ' done: ' + JSON.stringify(message.payload));
-      this.rl.prompt();
+      this.readline.prompt();
     } else if (message.type === 'CLUSTER_STATUS_REPLY') {
       var healthyNodes = message.payload;
       console.log('Status: ' + healthyNodes.length + ' nodes');
       if (healthyNodes.length > 0) {
         console.log('Nodes: ' + healthyNodes.join(', '));
       }
-      this.rl.prompt();
+      this.readline.prompt();
     }
   }
 }
