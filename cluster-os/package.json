@@ -4,6 +4,9 @@
   "main": "index.js",
   "scripts": {
     "build": "node scripts/build-dashboard.mjs",
+    "build:render": "node scripts/build-render.mjs",
+    "start": "node dist/render/Dashboard.js",
+    "start:render": "node dist/render/Dashboard.js",
     "start:dns": "node -r ts-node/register src/network/DNSRouter.ts",
     "start:lb": "node -r ts-node/register src/kernel/LoadBalancer.ts",
     "start:worker": "node -r ts-node/register src/worker/WorkerNode.ts",
