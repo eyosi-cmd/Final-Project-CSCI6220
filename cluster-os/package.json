@@ -1,8 +1,9 @@
 {
   "name": "cluster-os",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "main": "index.js",
   "scripts": {
+    "build": "node scripts/build-dashboard.mjs",
     "start:dns": "node -r ts-node/register src/network/DNSRouter.ts",
     "start:lb": "node -r ts-node/register src/kernel/LoadBalancer.ts",
     "start:worker": "node -r ts-node/register src/worker/WorkerNode.ts",

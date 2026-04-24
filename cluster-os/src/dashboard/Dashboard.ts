@@ -319,6 +319,11 @@ var server = http.createServer(function(req, res) {
     var client = fs.readFileSync(clientPath, 'utf-8');
     res.writeHead(200, { 'Content-Type': 'application/javascript' });
     res.end(client);
+  } else if (pathname === '/dashboard-api.js') {
+    var apiPath = path.join(__dirname, 'dashboard-api.js');
+    var api = fs.readFileSync(apiPath, 'utf-8');
+    res.writeHead(200, { 'Content-Type': 'application/javascript' });
+    res.end(api);
   } else if (pathname === '/dashboard.css') {
     var cssPath = path.join(__dirname, 'dashboard.css');
     var css = fs.readFileSync(cssPath, 'utf-8');
