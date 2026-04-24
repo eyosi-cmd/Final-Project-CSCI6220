@@ -1,4 +1,4 @@
-# ClusterOS — Project Structure & System Design
+# ClusterOS - Project Structure & System Design
 
 ## Overview
 
@@ -158,7 +158,7 @@ ClusterOS follows a **4-layer architecture** optimized for distributed job proce
 - 60-second heartbeat timeout for stale LB detection
 
 ### **Layer 3: Load Balancer Kernel** (Port 3010)
-The heart of ClusterOS—orchestrates all job distribution and worker coordination:
+The heart of ClusterOS orchestrates all job distribution and worker coordination:
 
 **Dispatcher (Priority Queue)**
 - Receives messages from clients and workers via TCP port 3010
@@ -222,18 +222,19 @@ The heart of ClusterOS—orchestrates all job distribution and worker coordinati
 
 | Layer | Component | Port(s) | Role |
 |---|---|---|---|
-| Client | `UserClient` | connects to :2000 | CLI — `submit`, `status`, `help`, `exit` |
+| Client | `UserClient` | connects to :2000 | CLI - `submit`, `status`, `help`, `exit` |
 | Client | `Browser` | connects to :5000 | Web UI consuming Dashboard REST API |
 | Network | `DNSRouter` | :2000 (client), :3000 (LB reg) | Transparent TCP proxy tunnel to LBs; round-robin across registered LBs |
 | Compute | `LoadBalancer` | :3010 (TCP), :9001 (HTTP metrics) | Priority-queue `Dispatcher` + 4 internal `Worker` message processors |
-| Scheduling | `Scheduler` | — | Client-affinity sticky sessions + circuit-breaker-aware least-loaded node selection |
-| Health | `FailureDetector` | — | Phi-accrual algorithm; tracks heartbeat interval history; φ ≥ 3.0 = unhealthy |
-| Resilience | `CircuitBreaker` | — | CLOSED → OPEN (5 failures) → HALF_OPEN (30 s timeout) → CLOSED (2 successful probes) |
-| Fault-tolerance | Job retry | — | 10 s job timeout, up to 3 retries on different workers |
-| Fan-out | Aggregation | — | Array payloads split into `SUB_JOB_SUBMIT` chunks across all healthy workers, reassembled in order |
-| Observability | Metrics HTTP | :9001 | `GET /metrics` → JSON: `healthyWorkers`, `totalWorkers`, `activeJobs`, `queuedJobs`, `circuitBreakerStates` |
+| Scheduling | `Scheduler` | - | Client-affinity sticky sessions + circuit-breaker-aware least-loaded node selection |
+| Health | `FailureDetector` | - | Phi-accrual algorithm; tracks heartbeat interval history; φ ≥ 3.0 = unhealthy |
+| Resilience | `CircuitBreaker` | - | CLOSED → OPEN (5 failures) → HALF_OPEN (30 s timeout) → CLOSED (2 successful probes) |
+| Fault-tolerance | Job retry | - | 10 s job timeout, up to 3 retries on different workers |
+| Fan-out | Aggregation | - | Array payloads split into `SUB_JOB_SUBMIT` chunks across all healthy workers, reassembled in order |
+| Observability | Metrics HTTP | :9001 | `GET /metrics` → JSON: `healthyWorkers`, `totalWorkers`, `activeJobs`, `queuedJobs`, `circuitBreakerStates`, `loadBalancerCpuUsage`, `loadBalancerMemoryUsage`, `loadBalancerDiskUsage`, `systemMetrics` |
 | Observability | `Dashboard` | :5000 | Polls `:9001`, submits jobs via TCP `:3010`, can spawn/kill worker processes |
-| Clocks | `LamportClock` | — | Each LB worker processor + each WorkerNode maintains a logical clock for causal ordering of messages |
+| Observability | `SystemMonitor` | local runtime | Samples CPU, memory, disk, process, and network stats for the load balancer host |
+| Clocks | `LamportClock` | - | Each LB worker processor + each WorkerNode maintains a logical clock for causal ordering of messages |
 
 ---
 
@@ -241,7 +242,7 @@ The heart of ClusterOS—orchestrates all job distribution and worker coordinati
 
 | Service | Port | Protocol | Purpose |
 |---|---|---|---|
-| DNSRouter | 2000 | TCP | Client connections — transparent proxy |
+| DNSRouter | 2000 | TCP | Client connections - transparent proxy |
 | DNSRouter | 3000 | TCP | LoadBalancer `REGISTER_LB` / `DEREGISTER_LB` |
 | LoadBalancer | 3010 | TCP | Workers + Dashboard connect; job/heartbeat traffic |
 | LoadBalancer | 9001 | HTTP | `GET /metrics` endpoint |
@@ -289,6 +290,7 @@ cluster-os/
 │   ├── kernel/
 │   │   ├── LoadBalancer.ts        # Dispatcher, Worker pool (×4), LoadBalancer class, Metrics HTTP server
 │   │   ├── Scheduler.ts           # Client-affinity map, circuit-breaker-aware least-load selection
+│   │   ├── SystemMonitor.ts       # Local host CPU, memory, disk, network, and process metrics
 │   │   ├── lamportClock.ts        # Lamport logical clock implementation
 │   │   └── lamportClock.test.ts   # Unit tests for LamportClock
 │   │
@@ -324,11 +326,11 @@ cluster-os/
 Services must be started in dependency order:
 
 ```
-1. DNSRouter        (npm run start:dns)       — must be first
-2. LoadBalancer     (npm run start:lb)        — registers with DNSRouter on startup
-3. WorkerNode(s)    (npm run start:worker)    — connect to LoadBalancer :3010
-4. Dashboard        (npm run start:dashboard) — polls LB metrics, connects to :3010
-5. UserClient       (npm run start:client)    — connects via DNSRouter :2000
+1. DNSRouter        (npm run start:dns)       - must be first
+2. LoadBalancer     (npm run start:lb)        - registers with DNSRouter on startup
+3. WorkerNode(s)    (npm run start:worker)    - connect to LoadBalancer :3010
+4. Dashboard        (npm run start:dashboard) - polls LB metrics, connects to :3010
+5. UserClient       (npm run start:client)    - connects via DNSRouter :2000
 ```
 
 Or use `npm start` to launch DNS + LB + 1 Worker + Dashboard concurrently via `concurrently`.  

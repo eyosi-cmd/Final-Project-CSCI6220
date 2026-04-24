@@ -1,5 +1,7 @@
 # ClusterOS - Distributed Systems Simulation
 
+![npm](https://img.shields.io/badge/npm-9%2B-CB3837?logo=npm&logoColor=white) ![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&logoColor=white) ![JavaScript](https://img.shields.io/badge/JavaScript-ES6%2B-F7DF1E?logo=javascript&logoColor=black) ![Node.js](https://img.shields.io/badge/Node.js-18%2B-339933?logo=nodedotjs&logoColor=white) ![Playwright](https://img.shields.io/badge/Playwright-E2E-2EAD33?logo=playwright&logoColor=white) ![HTML5](https://img.shields.io/badge/HTML5-Markup-E34F26?logo=html5&logoColor=white) ![CSS3](https://img.shields.io/badge/CSS3-Styling-1572B6?logo=css3&logoColor=white) ![Express](https://img.shields.io/badge/Express-Backend-000000?logo=express&logoColor=white) ![Vercel](https://img.shields.io/badge/Vercel-Deployed-000000?logo=vercel&logoColor=white)
+
 ClusterOS is a distributed systems project that simulates a cluster of computers working together. It demonstrates how load balancers distribute work across multiple machines, how systems detect failures, and how they recover from problems automatically.
 
 ## What's Inside
@@ -14,7 +16,7 @@ ClusterOS includes:
 ## Prerequisites
 
 You need:
-- Node.js version 16 or higher
+- Node.js version 18 or higher
 - npm (comes with Node.js)
 
 To check if you have them:
@@ -25,8 +27,10 @@ npm --version
 
 ## Installation
 
+If you opened the extracted zip at the project root, first move into the `cluster-os` folder.
+
 1. Open your terminal or PowerShell
-2. Navigate to the cluster-os directory
+2. Navigate to the `cluster-os` directory
 3. Install dependencies:
 ```bash
 npm install
@@ -34,9 +38,16 @@ npm install
 
 This installs all required packages for running the system.
 
+If you want to work from the extracted root folder instead, you can run:
+
+```bash
+npm run install:all
+npm start
+```
+
 ## Running Options
 
-### Option A — Live Deployment (no setup required)
+### Option A - Live Deployment (no setup required)
 
 The app is deployed at:
 
@@ -45,14 +56,19 @@ https://cluster-os.vercel.app
 ```
 
 Uses a serverless backend (Vercel Functions) with a simulated in-memory cluster. No local installation needed.
+Host CPU, memory, disk, and network metrics are only available in the local cluster, so the deployed dashboard can show unavailable or fallback values for those panels.
 
-### Option B — Local Full Cluster
+(Just a heads up, the Vercel version isn't running the full backend from the local distributed-system setup. Vercel doesn't really support the long-running multi-process backend this project was originally built around, so the deployed site uses a mocked backend for demo purposes only. That means some behavior in the live app is intentionally simplified and won't exactly match the local cluster version. I also started an initial Render setup to eventually run the real backend outside Vercel, but it wasn't fully integrated before the deadline due to time constraints. The `render.yaml` is there as a starting point, but full production wiring for the real cluster processes wasn't finished.)
+
+### Option B - Local Full Cluster
 
 The easiest way to run the entire system locally is:
 
 ```bash
 npm start
 ```
+
+Run that command from inside the `cluster-os` folder. If you stay in the extracted root folder, use the root-level `npm start` instead.
 
 This command starts:
 - DNS Router (service discovery)
@@ -74,6 +90,7 @@ You should see the ClusterOS Dashboard with:
 - System Controls (Start/Stop Load Balancer, Add/Remove Workers)
 - Cluster Metrics (Healthy workers, active jobs, queued jobs)
 - System Health (Real-time graphs showing utilization, throughput, queue depth)
+- Load Balancer Host Metrics (CPU, memory, disk, and network usage)
 - Circuit Breaker States (Health status of each worker)
 - Job Submission (Submit jobs and view results)
 - Dynamic Tuning (Adjust system parameters)
@@ -91,6 +108,7 @@ You should see the ClusterOS Dashboard with:
 9. Use the hamburger menu (three lines) to open Dynamic Tuning and adjust coefficients
 
 The dashboard updates automatically every 500 milliseconds, so you can see system behavior in real-time.
+After adding or removing a worker, the dashboard also triggers a few faster refreshes so the worker counts and health cards catch up quickly.
 
 ## What Each Metric Means
 
@@ -101,6 +119,8 @@ The dashboard updates automatically every 500 milliseconds, so you can see syste
 - **Cluster Utilization**: Percentage showing how much the cluster is being used (0-100%)
 - **Request Throughput**: Jobs being processed per second
 - **Queue Depth**: Count of pending jobs
+- **Load Balancer CPU / Memory / Disk**: Host machine usage reported by the local load balancer
+- **Network Stats**: Aggregate inbound and outbound traffic reported by the local load balancer host
 
 ## Stop the System
 
@@ -146,11 +166,17 @@ To run automated tests:
 npm test
 ```
 
+This starts the core local services automatically through Playwright's `webServer` configuration and runs the dashboard end-to-end tests.
+
 To run tests in UI mode with visualization:
 
 ```bash
 npm run test:ui
 ```
+
+Supported Playwright projects in the current setup:
+- Chromium
+- WebKit
 
 To view test results:
 
@@ -158,11 +184,11 @@ To view test results:
 npm run test:report
 ```
 
-Note: Before running tests, start the services in separate terminals:
+If you already started the services manually and want Playwright to reuse them, run:
 - Terminal 1: `npm run start:dns`
 - Terminal 2: `npm run start:lb`
 - Terminal 3: `npm run start:dashboard`
-- Terminal 4: `SKIP_WEB_SERVER=1 npm test`
+- Terminal 4: `set SKIP_WEB_SERVER=1 && npm test`
 
 ## Understanding the Architecture
 
@@ -209,6 +235,13 @@ When you submit a job through the dashboard:
 - Load Balancer must be running
 - Check for error messages in the terminal
 
+## Current Limitations
+
+- The deployed Vercel app runs a demo backend, not the true local multi-process cluster.
+- Some dashboard behavior is mocked or simplified in the hosted version so the UI can still be demonstrated.
+- A few frontend/backend paths are stale from earlier iterations, especially around dashboard API wiring and duplicated dashboard assets.
+- Render deployment scaffolding exists, but the real backend flow was not fully connected and tested end-to-end.
+
 ## Development
 
 To modify the system:
@@ -216,6 +249,14 @@ To modify the system:
 2. The system auto-reloads using ts-node
 3. Changes take effect on the next request
 4. Check terminal output for errors
+
+## Future Enhancements
+
+- Fully integrate the real backend with a non-serverless deployment target so the hosted app matches the local cluster architecture.
+- Remove stale or duplicated dashboard files and make the frontend build use a single source of truth.
+- Unify the mocked API and local cluster API behavior so tests and deployment are validating the same system.
+- Refresh Playwright coverage so tests match the current dashboard text and verify both local and hosted behavior more clearly.
+- Replace fallback/demo metrics with real runtime metrics wherever deployment infrastructure allows it.
 
 ## Further Learning
 
@@ -322,8 +363,8 @@ Submit multiple jobs:
 
 In `scripts/` there are two helper scripts for quick testing:
 
-- `submit_job.js` — Submit a single job from the terminal
-- `submit_multiple_jobs.js` — Submit many jobs in a loop
+- `submit_job.js` - Submit a single job from the terminal
+- `submit_multiple_jobs.js` - Submit many jobs in a loop
 
 These are optional; the dashboard and CLI are the main ways to interact with the system.
 

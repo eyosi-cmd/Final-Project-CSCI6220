@@ -1,5 +1,6 @@
-## ClusterOS
+![npm](https://img.shields.io/badge/npm-9%2B-CB3837?logo=npm&logoColor=white) ![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&logoColor=white) ![JavaScript](https://img.shields.io/badge/JavaScript-ES6%2B-F7DF1E?logo=javascript&logoColor=black) ![Node.js](https://img.shields.io/badge/Node.js-18%2B-339933?logo=nodedotjs&logoColor=white) ![Playwright](https://img.shields.io/badge/Playwright-E2E-2EAD33?logo=playwright&logoColor=white) ![HTML5](https://img.shields.io/badge/HTML5-Markup-E34F26?logo=html5&logoColor=white) ![CSS3](https://img.shields.io/badge/CSS3-Styling-1572B6?logo=css3&logoColor=white) ![Express](https://img.shields.io/badge/Express-Backend-000000?logo=express&logoColor=white)
 
+## ClusterOS
 ClusterOS is a distributed systems simulation based on "Distributed Systems: Concepts and Design (5th Edition)" by George Coulouris. It demonstrates a Load Balancer acting as the kernel, providing a Single System Image over commodity worker nodes using raw TCP sockets.
 
 ### Quick Start
@@ -80,6 +81,7 @@ The interactive web-based dashboard provides real-time monitoring and control of
 - Health Graph: Worker utilization percentage over time
 - Throughput Graph: Jobs completed per second with dynamic boost calculation
 - Queue Graph: Job queue depth with payload-aware scaling
+- Load Balancer host stats: CPU, memory, disk, and network usage from the local runtime
 - Real-time updates every 500ms via metrics polling
 
 **Load Distribution Display**
@@ -120,7 +122,7 @@ The interactive web-based dashboard provides real-time monitoring and control of
 
 The dashboard communicates with the backend via RESTful APIs:
 
-- `GET /api/metrics` - Cluster metrics (workers, jobs, circuit breaker states)
+- `GET /api/metrics` - Cluster metrics, circuit breaker states, and local load balancer host metrics
 - `POST /api/start-lb` - Start load balancer
 - `POST /api/kill-lb` - Stop load balancer
 - `POST /api/start-worker` - Add worker node
@@ -133,11 +135,13 @@ The dashboard communicates with the backend via RESTful APIs:
 Dashboard-specific flow:
 1. Frontend polls `/api/metrics` every 500ms for cluster state
 2. Dashboard.ts (backend) fetches metrics from LoadBalancer (port 9001)
-3. LoadBalancer aggregates circuit breaker states from all workers
+3. LoadBalancer aggregates worker state and local host metrics from SystemMonitor
 4. Frontend displays real-time cluster state with color-coded indicators
 5. User submits jobs via web form
 6. Dashboard routes jobs to LoadBalancer via TCP port 3010
 7. Results returned and displayed in scrollable job log
+
+On Vercel, the dashboard uses the deployed in-memory simulation. Host CPU, memory, disk, and network panels are only fully available in local runs.
 
 For complete job submission flow, see [Project Structure.md](Project%20Structure.md#data-flow-job-submission-to-result).
 
@@ -193,6 +197,8 @@ npm run test:headed   # Headed browser testing
 npm run test:report   # Show test report
 ```
 
+The Playwright suite is configured and working for the dashboard flow. By default it starts the core local services automatically and runs against Chromium and WebKit.
+
 ### Production Deployment
 
 Dashboard can be deployed to Vercel via `vercel.json` configuration. Render.yaml supports deployment on Render platform.
@@ -205,7 +211,7 @@ Dashboard can be deployed to Vercel via `vercel.json` configuration. Render.yaml
 - **Runtime**: Node.js with ts-node
 - **Frontend**: HTML5, CSS3, Vanilla JavaScript
 - **Backend**: Node.js HTTP + Raw TCP sockets
-- **Testing**: Playwright (partial implementation)
+- **Testing**: Playwright end-to-end dashboard tests
 - **Process Management**: concurrently (parallel execution)
 - **Deployment**: Vercel (fully implemented), Render (partial implementation)
 
@@ -216,12 +222,12 @@ Dashboard can be deployed to Vercel via `vercel.json` configuration. Render.yaml
 Detailed file structure, startup order, and job lifecycle are documented in [Project Structure.md](Project%20Structure.md).
 
 **Key directories:**
-- `src/kernel/` — LoadBalancer, Scheduler, LamportClock
-- `src/network/` — DNSRouter
-- `src/worker/` — WorkerNode
-- `src/dashboard/` — Web UI and backend server
-- `src/middleware/` — FailureDetector
-- `tests/` — Playwright integration tests
+- `src/kernel/` - LoadBalancer, Scheduler, LamportClock, SystemMonitor
+- `src/network/` - DNSRouter
+- `src/worker/` - WorkerNode
+- `src/dashboard/` - Web UI and backend server
+- `src/middleware/` - FailureDetector
+- `tests/` - Playwright integration tests
 
 ---
 
@@ -231,11 +237,11 @@ Detailed file structure, startup order, and job lifecycle are documented in [Pro
 - Node.js 18+
 - npm 9+
 - Available ports on localhost:
-  - `2000` — DNS Router (client routing)
-  - `3000` — DNS Router (LB registration)
-  - `3010` — Load Balancer (job/heartbeat traffic)
-  - `5000` — Dashboard UI
-  - `9001` — Metrics endpoint
+  - `2000` - DNS Router (client routing)
+  - `3000` - DNS Router (LB registration)
+  - `3010` - Load Balancer (job/heartbeat traffic)
+  - `5000` - Dashboard UI
+  - `9001` - Metrics endpoint with cluster and host system stats
 
 **For Deployment:**
 - Vercel: Connected via `vercel.json` configuration

@@ -85,12 +85,51 @@ function initializeEventListeners() {
 
   initializeTuningControls();
   initializeTuningPanel();
+  initializeInfoPanel();
 }
 
 function initializeTuningPanel() {
   var toggleBtn = document.getElementById('tuning-panel-toggle');
   var closeBtn = document.getElementById('tuning-panel-close');
   var sidePanel = document.getElementById('tuning-side-panel');
+
+  if (toggleBtn) {
+    toggleBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      if (sidePanel) {
+        sidePanel.classList.toggle('open');
+      }
+    });
+  }
+
+  if (closeBtn) {
+    closeBtn.addEventListener('click', function() {
+      if (sidePanel) {
+        sidePanel.classList.remove('open');
+      }
+    });
+  }
+
+  if (sidePanel) {
+    sidePanel.addEventListener('click', function(e) {
+      e.stopPropagation();
+    });
+  }
+
+  // Close panel when clicking outside
+  document.addEventListener('click', function(e) {
+    if (sidePanel && toggleBtn) {
+      if (!sidePanel.contains(e.target) && !toggleBtn.contains(e.target)) {
+        sidePanel.classList.remove('open');
+      }
+    }
+  });
+}
+
+function initializeInfoPanel() {
+  var toggleBtn = document.getElementById('info-panel-toggle');
+  var closeBtn = document.getElementById('info-panel-close');
+  var sidePanel = document.getElementById('info-side-panel');
 
   if (toggleBtn) {
     toggleBtn.addEventListener('click', function(e) {
