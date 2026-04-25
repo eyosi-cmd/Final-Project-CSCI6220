@@ -93,7 +93,8 @@ function initializeTuningPanel() {
   var sidePanel = document.getElementById('tuning-side-panel');
 
   if (toggleBtn) {
-    toggleBtn.addEventListener('click', function() {
+    toggleBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
       if (sidePanel) {
         sidePanel.classList.toggle('open');
       }
@@ -110,11 +111,18 @@ function initializeTuningPanel() {
 
   if (sidePanel) {
     sidePanel.addEventListener('click', function(e) {
-      if (e.target === sidePanel) {
-        sidePanel.classList.remove('open');
-      }
+      e.stopPropagation();
     });
   }
+
+  // Close panel when clicking outside
+  document.addEventListener('click', function(e) {
+    if (sidePanel && toggleBtn) {
+      if (!sidePanel.contains(e.target) && !toggleBtn.contains(e.target)) {
+        sidePanel.classList.remove('open');
+      }
+    }
+  });
 }
 
 function initializeTuningControls() {
