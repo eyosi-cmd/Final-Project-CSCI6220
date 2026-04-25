@@ -1,18 +1,39 @@
+﻿/* ── ClusterOS Dashboard – Dark Navy Theme (matches banner) ── */
+
+:root {
+    --bg-page:       #080f1e;
+    --bg-surface:    #0d1a2e;
+    --bg-panel:      #111e33;
+    --bg-panel-hd:   #162540;
+    --accent:        #1e90ff;
+    --accent-dark:   #0066ff;
+    --accent-glow:   rgba(30, 144, 255, 0.18);
+    --text-primary:  #e8f0fe;
+    --text-secondary:#b0c4de;
+    --text-muted:    #6a85a8;
+    --border:        #1e3050;
+    --success:       #22c55e;
+    --danger:        #ef4444;
+    --warning:       #f59e0b;
+}
+
 body {
-    background: #f5f5f5;
+    background: var(--bg-page);
     font-family: Arial, sans-serif;
     margin: 0;
     padding: 10px;
+    color: var(--text-primary);
 }
 
 .banner-section {
     width: 100%;
-    height: 200px;
-    margin-bottom: 20px;
+    height: 150px;
+    margin-bottom: 16px;
     border-radius: 8px;
     overflow: hidden;
-    box-shadow: 0 4px 12px rgba(30, 144, 255, 0.15);
+    box-shadow: 0 4px 20px var(--accent-glow);
     background: linear-gradient(135deg, #0a1628 0%, #1a2a3a 100%);
+    border: 1px solid var(--border);
 }
 
 .banner-image {
@@ -28,17 +49,19 @@ body {
 }
 
 .header {
-    background: linear-gradient(to right, #1a1a1a 0%, #2a2a2a 100%);
-    color: white;
+    background: var(--bg-surface);
+    color: var(--text-primary);
     padding: 12px 15px;
-    margin-bottom: 20px;
-    border-left: 4px solid #1e90ff;
+    margin-bottom: 16px;
     border-radius: 4px;
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--accent);
 }
 
 .header h1 {
     margin: 0;
     font-size: 24px;
+    color: var(--text-primary);
 }
 
 .header-content {
@@ -54,22 +77,28 @@ body {
 }
 
 .panel {
-    background: white;
-    border: 1px solid #ccc;
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
     margin-bottom: 15px;
     padding: 0;
+    border-radius: 6px;
+    overflow: hidden;
 }
 
 .panel-header {
-    background: #e0e0e0;
-    padding: 10px;
+    background: var(--bg-panel-hd);
+    padding: 10px 14px;
     font-weight: bold;
-    border-bottom: 1px solid #ccc;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-secondary);
 }
 
 .panel-header h2 {
     margin: 0;
-    font-size: 16px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
 .panel-body {
@@ -77,40 +106,75 @@ body {
 }
 
 .btn {
-    background: #0066cc;
-    color: white;
+    background: var(--accent-dark);
+    color: #fff;
     border: none;
     padding: 8px 12px;
     margin: 5px;
     cursor: pointer;
-    font-size: 14px;
+    font-size: 13px;
+    border-radius: 4px;
+    transition: background 0.15s, box-shadow 0.15s;
 }
 
 .btn:hover {
-    background: #0052a3;
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent-glow);
 }
 
 .btn-success {
-    background: #6ba83d;
+    background: #0f3a1e;
+    color: var(--success);
+    border: 1px solid #166534;
+}
+
+.btn-success:hover {
+    background: #15803d;
+    color: #fff;
+    box-shadow: 0 0 8px rgba(34, 197, 94, 0.25);
 }
 
 .btn-danger {
-    background: #cc0000;
+    background: #3b0a0a;
+    color: var(--danger);
+    border: 1px solid #7f1d1d;
+}
+
+.btn-danger:hover {
+    background: #991b1b;
+    color: #fff;
+    box-shadow: 0 0 8px rgba(239, 68, 68, 0.25);
 }
 
 .btn-primary {
-    background: #0066cc;
+    background: var(--accent-dark);
+    color: #fff;
 }
 
 .btn-warning {
-    background: #ff9900;
+    background: #3b1f04;
+    color: var(--warning);
+    border: 1px solid #78350f;
+}
+
+.btn-warning:hover {
+    background: #92400e;
+    color: #fff;
+    box-shadow: 0 0 8px rgba(245, 158, 11, 0.25);
 }
 
 .btn-accent {
-    background: #6b21a8;
+    background: #1e0935;
+    color: #d8b4fe;
+    border: 1px solid #4c1d95;
     width: 100%;
     margin-top: 10px;
     padding: 10px;
+}
+
+.btn-accent:hover {
+    background: #4c1d95;
+    box-shadow: 0 0 8px rgba(167, 139, 250, 0.25);
 }
 
 .button-row {
@@ -128,8 +192,9 @@ body {
 }
 
 .control-section h3 {
-    font-size: 14px;
+    font-size: 13px;
     margin: 5px 0;
+    color: var(--text-secondary);
 }
 
 .metrics-container {
@@ -139,27 +204,37 @@ body {
 }
 
 .metric-card {
-    background: #f9f9f9;
-    border: 1px solid #ddd;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
     padding: 15px;
     text-align: center;
+    border-radius: 6px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.metric-card:hover {
+    border-color: var(--accent);
+    box-shadow: 0 0 12px var(--accent-glow);
 }
 
 .metric-header {
-    font-size: 12px;
-    color: #666;
-    margin-bottom: 5px;
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
 .metric-value {
     font-size: 28px;
     font-weight: bold;
-    color: #333;
+    color: var(--accent);
 }
 
 .metric-subtext {
-    font-size: 12px;
-    color: #666;
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 4px;
 }
 
 .circuit-list {
@@ -169,16 +244,17 @@ body {
 }
 
 .empty-state {
-    color: #999;
+    color: var(--text-muted);
     text-align: center;
     padding: 20px;
 }
 
 .form-label {
     display: block;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: bold;
     margin-bottom: 5px;
+    color: var(--text-secondary);
 }
 
 .input-wrapper {
@@ -189,9 +265,20 @@ body {
     width: 100%;
     height: 100px;
     padding: 8px;
-    border: 1px solid #ccc;
+    border: 1px solid var(--border);
     font-family: monospace;
     font-size: 13px;
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    border-radius: 4px;
+    box-sizing: border-box;
+    resize: vertical;
+}
+
+.form-input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 6px var(--accent-glow);
 }
 
 .output-section {
@@ -199,72 +286,80 @@ body {
 }
 
 .output-header {
-    font-size: 14px;
+    font-size: 13px;
     font-weight: bold;
     margin-bottom: 5px;
     display: flex;
     justify-content: space-between;
+    color: var(--text-secondary);
 }
 
 .btn-small {
-    background: #999;
-    color: white;
-    border: none;
+    background: var(--bg-panel-hd);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
     padding: 4px 8px;
     cursor: pointer;
-    font-size: 12px;
+    font-size: 11px;
+    border-radius: 3px;
+}
+
+.btn-small:hover {
+    color: var(--text-primary);
+    border-color: var(--accent);
 }
 
 .terminal {
-    background: black;
-    color: #0f0;
-    border: 1px solid #333;
+    background: #030810;
+    color: #1e90ff;
+    border: 1px solid var(--border);
     padding: 10px;
     font-family: monospace;
     font-size: 12px;
     height: 150px;
     overflow-y: auto;
     white-space: pre-wrap;
+    border-radius: 4px;
 }
 
 #lb-status {
     display: inline-block;
     padding: 4px 10px;
     border-radius: 4px;
-    background: rgba(239, 68, 68, 0.1);
-    color: #ef4444;
+    background: rgba(239, 68, 68, 0.12);
+    color: var(--danger);
     font-weight: 500;
 }
 
 #lb-status.ready {
-    background: rgba(16, 185, 129, 0.1);
-    color: #10b981;
+    background: rgba(34, 197, 94, 0.12);
+    color: var(--success);
 }
 
 #health-indicator, #load-distribution {
     font-weight: 500;
-    color: #333;
+    color: var(--text-primary);
 }
 
 .info-panel {
-    background: #fafafa;
+    background: var(--bg-panel);
 }
 
 .info-panel .panel-header {
-    background: #e8f4f8;
-    border-bottom: 2px solid #b3e5fc;
+    background: var(--bg-panel-hd);
+    border-bottom: 1px solid var(--border);
 }
 
 .info-panel .panel-body {
-    background: #f8fafb;
+    background: var(--bg-panel);
 }
 
 code {
-    background: #f0f0f0;
+    background: #050d1a;
     padding: 3px 6px;
     border-radius: 3px;
     font-family: 'Courier New', monospace;
     font-size: 11px;
-    color: #333;
+    color: var(--accent);
+    border: 1px solid var(--border);
 }
-
