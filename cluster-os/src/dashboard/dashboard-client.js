@@ -1,3 +1,16 @@
+// dashboard client
+var API = {
+  metrics: '/api/metrics',
+  startLB: '/api/start-lb',
+  stopLB: '/api/kill-lb',
+  addWorker: '/api/start-worker',
+  removeWorker: '/api/kill-worker',
+  submitJob: '/api/submit-job',
+  jobResult: function(id) { return '/api/job-result/' + id; },
+  cancelJob: function(id) { return '/api/cancel-job/' + id; }
+};
+
+// state
 var dashboard = {
   metricsUpdateInterval: null,
   jobResultCheckInterval: null,
@@ -5,22 +18,15 @@ var dashboard = {
   resultHistory: []
 };
 
-var apiPromise = null;
-
-function getApi() {
-  if (!apiPromise) {
-    apiPromise = import('./dashboard-api.js').then(function(module) {
-      return module.createDashboardApi();
-    });
-  }
-  return apiPromise;
-}
-
+// init
 document.addEventListener('DOMContentLoaded', function() {
+  console.log('[Dashboard] Page loaded, initializing...');
   initializeEventListeners();
   startMetricsUpdate();
+  console.log('[Dashboard] Dashboard ready - metrics polling active');
 });
 
+// event setup
 function initializeEventListeners() {
   var startLbBtn = document.getElementById('start-lb');
   var stopLbBtn = document.getElementById('stop-lb');
@@ -37,12 +43,17 @@ function initializeEventListeners() {
   if (clearOutputBtn) clearOutputBtn.addEventListener('click', clearJobResults);
 }
 
+// ==================== BUTTON HANDLERS ====================
+
 function handleStartLB() {
   var btn = document.getElementById('start-lb');
   setButtonLoading(btn, true);
 
-  getApi().then(function(api) {
-    return api.startLoadBalancer();
+  fetch(API.startLB, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' }
+  }).then(function(response) {
+    return response.json();
   }).then(function(data) {
     if (data.error) {
       addLog('Failed: ' + data.error);
@@ -61,8 +72,11 @@ function handleStopLB() {
   var btn = document.getElementById('stop-lb');
   setButtonLoading(btn, true);
 
-  getApi().then(function(api) {
-    return api.stopLoadBalancer();
+  fetch(API.stopLB, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' }
+  }).then(function(response) {
+    return response.json();
   }).then(function(data) {
     if (data.error) {
       addLog('Failed: ' + data.error);
@@ -81,8 +95,11 @@ function handleAddWorker() {
   var btn = document.getElementById('add-worker');
   setButtonLoading(btn, true);
 
-  getApi().then(function(api) {
-    return api.startWorker();
+  fetch(API.addWorker, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' }
+  }).then(function(response) {
+    return response.json();
   }).then(function(data) {
     if (data.error) {
       addLog('Failed: ' + data.error);
@@ -101,8 +118,11 @@ function handleRemoveWorker() {
   var btn = document.getElementById('remove-worker');
   setButtonLoading(btn, true);
 
-  getApi().then(function(api) {
-    return api.stopWorker();
+  fetch(API.removeWorker, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' }
+  }).then(function(response) {
+    return response.json();
   }).then(function(data) {
     if (data.error) {
       addLog('Failed: ' + data.error);
@@ -140,14 +160,22 @@ function handleSubmitJob() {
   var btn = document.getElementById('submit-job');
   setButtonLoading(btn, true);
 
-  getApi().then(function(api) {
-    return api.submitJob(parsedData);
+  fetch(API.submitJob, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ data: parsedData })
+  }).then(function(response) {
+    return response.json();
   }).then(function(result) {
-    dashboard.currentJobId = result.jobId;
-    addLog('Job: ' + result.jobId);
-    addLog('Processing...');
-    input.value = '';
-    startJobResultCheck();
+    if (result.error) {
+      addLog('Submit failed: ' + result.error);
+    } else {
+      dashboard.currentJobId = result.jobId;
+      addLog('Job: ' + result.jobId);
+      addLog('Processing...');
+      input.value = '';
+      startJobResultCheck();
+    }
     setButtonLoading(btn, false);
   }).catch(function(err) {
     addLog('Error: ' + err.message);
@@ -155,7 +183,10 @@ function handleSubmitJob() {
   });
 }
 
+// ==================== POLLING ====================
+
 function startMetricsUpdate() {
+  console.log('[Metrics] Starting dynamic metrics update every 2 seconds');
   updateMetrics();
   dashboard.metricsUpdateInterval = setInterval(function() {
     updateMetrics();
@@ -163,23 +194,37 @@ function startMetricsUpdate() {
 }
 
 function updateMetrics() {
-  getApi().then(function(api) {
-    return api.getMetrics();
-  }).then(function(metrics) {
-    var healthyEl = document.getElementById('metric-healthy');
-    var totalEl = document.getElementById('metric-total');
-    var activeEl = document.getElementById('metric-active');
-    var queuedEl = document.getElementById('metric-queued');
+  fetch(API.metrics)
+    .then(function(response) {
+      if (!response.ok) {
+        throw new Error('HTTP ' + response.status);
+      }
+      return response.json();
+    })
+    .then(function(metrics) {
+      var healthyEl = document.getElementById('metric-healthy');
+      var totalEl = document.getElementById('metric-total');
+      var activeEl = document.getElementById('metric-active');
+      var queuedEl = document.getElementById('metric-queued');
 
-    if (healthyEl) healthyEl.textContent = String(metrics.healthyWorkers || 0);
-    if (totalEl) totalEl.textContent = String(metrics.totalWorkers || 0);
-    if (activeEl) activeEl.textContent = String(metrics.activeJobs || 0);
-    if (queuedEl) queuedEl.textContent = String(metrics.queuedJobs || 0);
+      if (healthyEl) healthyEl.textContent = String(metrics.healthyWorkers || 0);
+      if (totalEl) totalEl.textContent = String(metrics.totalWorkers || 0);
+      if (activeEl) activeEl.textContent = String(metrics.activeJobs || 0);
+      if (queuedEl) queuedEl.textContent = String(metrics.queuedJobs || 0);
 
-    updateCircuitBreakers(metrics.circuitBreakerStates || {});
-  }).catch(function(err) {
-    console.error('[Metrics] Fetch failed:', err.message);
-  });
+      console.log('[Metrics] Updated:', {
+        healthy: metrics.healthyWorkers,
+        total: metrics.totalWorkers,
+        active: metrics.activeJobs,
+        queued: metrics.queuedJobs,
+        timestamp: new Date().toLocaleTimeString()
+      });
+
+      updateCircuitBreakers(metrics.circuitBreakerStates || {});
+    })
+    .catch(function(err) {
+      console.error('[Metrics] Fetch failed:', err.message);
+    });
 }
 
 function updateCircuitBreakers(states) {
@@ -187,6 +232,7 @@ function updateCircuitBreakers(states) {
 
   if (!container) return;
 
+  // Update timestamp
   var timestamp = new Date();
   var timeStr = timestamp.getHours().toString().padStart(2, '0') + ':' +
                 timestamp.getMinutes().toString().padStart(2, '0') + ':' +
@@ -197,7 +243,7 @@ function updateCircuitBreakers(states) {
   }
 
   if (!states || Object.keys(states).length === 0) {
-    container.innerHTML = '<div class="empty-state">No circuits</div>';
+    container.innerHTML = '<div class="empty-state">No circuits active</div>';
     return;
   }
 
@@ -244,12 +290,13 @@ function startJobResultCheck() {
 
     if (!dashboard.currentJobId) return;
 
-    getApi().then(function(api) {
-      return api.getJobResult(dashboard.currentJobId);
+    fetch(API.jobResult(dashboard.currentJobId)).then(function(response) {
+      return response.json();
     }).then(function(job) {
-      if (job && job.result) {
+      if (job.result) {
         addLog('Job completed');
-        addLog('Result: [' + job.result.join(', ') + ']');
+        var resultStr = job.result.join(', ');
+        addLog('Result: [' + resultStr + ']');
         dashboard.resultHistory.push({
           input: job.data,
           output: job.result,
@@ -263,37 +310,51 @@ function startJobResultCheck() {
   }, 2000);
 }
 
-function addLog(message) {
-  var terminal = document.getElementById('job-results');
+// ==================== UTILITY FUNCTIONS ====================
+
+function addLog(message, type = 'info') {
+  const terminal = document.getElementById('job-results');
   if (!terminal) return;
 
-  var timestamp = new Date().toLocaleTimeString();
-  terminal.textContent += '[' + timestamp + '] ' + message + '\n';
+  const timestamp = new Date().toLocaleTimeString();
+  const prefix = `[${timestamp}]`;
+
+  const newLine = `${prefix} ${message}\n`;
+  terminal.textContent += newLine;
   terminal.scrollTop = terminal.scrollHeight;
 }
 
 function clearJobResults() {
-  var terminal = document.getElementById('job-results');
+  const terminal = document.getElementById('job-results');
   if (terminal) {
     terminal.textContent = 'Ready to dispatch jobs...\n';
   }
 }
 
 function setButtonLoading(button, isLoading) {
-  if (!button) return;
+  var textEl = button.querySelector('.btn-text');
+
+  if (!textEl) return;
 
   if (isLoading) {
     button.disabled = true;
     button.style.opacity = '0.6';
-    button.dataset.originalText = button.textContent || '';
-    button.textContent = 'Loading...';
+    textEl.textContent = 'Loading...';
   } else {
     button.disabled = false;
     button.style.opacity = '1';
-    button.textContent = button.dataset.originalText || button.textContent || 'Button';
+    var originalTexts = {
+      'start-lb': 'Start LB',
+      'stop-lb': 'Stop LB',
+      'add-worker': 'Add Worker',
+      'remove-worker': 'Remove Worker',
+      'submit-job': 'Dispatch Job'
+    };
+    textEl.textContent = originalTexts[button.id] || 'Button';
   }
 }
 
+// cleanup on page unload
 window.addEventListener('beforeunload', function() {
   if (dashboard.metricsUpdateInterval) {
     clearInterval(dashboard.metricsUpdateInterval);

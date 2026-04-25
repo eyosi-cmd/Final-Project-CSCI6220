@@ -4,12 +4,9 @@ import * as path from 'path';
 import * as net from 'net';
 import { spawn, ChildProcess } from 'child_process';
 
-var port = Number(process.env.PORT || 5000);
-var lbMetricsPort = Number(process.env.LB_METRICS_PORT || 9001);
-var lbPort = Number(process.env.LB_PORT || 3010);
-var clientUrl = (process.env.CLIENT_URL || '*').trim();
-var autoStartCluster = (process.env.AUTO_START_CLUSTER || 'true').toLowerCase() !== 'false';
-var workerCount = Math.max(0, Number(process.env.WORKER_COUNT || 2));
+var port = 5000;
+var lbMetricsPort = 9001;
+var lbPort = 3010;
 
 interface ClusterStatus {
   healthyWorkers: number;
@@ -32,45 +29,6 @@ var processMap: Map<string, ChildProcess> = new Map();
 var jobMap: Map<string, JobRequest> = new Map();
 var lbClientConnection: net.Socket | null = null;
 var requestIdCounter = 0;
-var dashboardStarted = false;
-
-function applyCorsHeaders(res: http.ServerResponse) {
-  res.setHeader('Access-Control-Allow-Origin', clientUrl === '*' ? '*' : clientUrl);
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-}
-
-function logRequest(req: http.IncomingMessage) {
-  console.log('[DASHBOARD] ' + req.method + ' ' + (req.url || '/'));
-}
-
-function ensureClusterStarted() {
-  if (!autoStartCluster || dashboardStarted) {
-    return;
-  }
-
-  dashboardStarted = true;
-  if (!processMap.has('loadbalancer')) {
-    setTimeout(function() {
-      spawnProcess('loadbalancer', 'node', [resolveRuntimeEntry('dist/render/LoadBalancer.js', 'src/kernel/LoadBalancer.ts')]);
-    }, 1000);
-  }
-
-  setTimeout(function() {
-    for (var i = 0; i < workerCount; i++) {
-      var workerName = 'worker-' + i;
-      if (!processMap.has(workerName)) {
-        spawnProcess(workerName, 'node', [resolveRuntimeEntry('dist/render/WorkerNode.js', 'src/worker/WorkerNode.ts')]);
-      }
-    }
-  }, 2000);
-
-  setTimeout(function() {
-    connectToLoadBalancer().catch(function(err) {
-      console.error('[DASHBOARD] Auto-connect failed: ' + err.message);
-    });
-  }, 4000);
-}
 
 function connectToLoadBalancer(): Promise<void> {
   return new Promise(function(resolve, reject) {
@@ -215,15 +173,6 @@ function spawnProcess(name: string, command: string, args: string[]): { error?: 
   return { status: name + ' started succesfully (PID: ' + proc.pid + ')' };
 }
 
-function resolveRuntimeEntry(builtRelativePath: string, sourceRelativePath: string) {
-  var builtPath = path.join(process.cwd(), builtRelativePath);
-  if (fs.existsSync(builtPath)) {
-    return builtPath;
-  }
-
-  return path.join(process.cwd(), sourceRelativePath);
-}
-
 function killProcess(name: string): { error?: string; status?: string } {
   if (!processMap.has(name)) {
     return { error: name + ' is not running' };
@@ -247,22 +196,13 @@ var server = http.createServer(function(req, res) {
   var url = new URL(req.url || '/', 'http://' + req.headers.host);
   var pathname = url.pathname;
 
-  logRequest(req);
-  applyCorsHeaders(res);
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
   if (req.method === 'OPTIONS') {
     res.writeHead(200);
     res.end();
-    return;
-  }
-
-  if (pathname === '/health') {
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({
-      status: 'ok',
-      workers: Array.from(processMap.keys()).filter(function(key) { return key.indexOf('worker-') === 0; }).length,
-      jobs: jobMap.size
-    }));
     return;
   }
 
@@ -379,11 +319,6 @@ var server = http.createServer(function(req, res) {
     var client = fs.readFileSync(clientPath, 'utf-8');
     res.writeHead(200, { 'Content-Type': 'application/javascript' });
     res.end(client);
-  } else if (pathname === '/dashboard-api.js') {
-    var apiPath = path.join(__dirname, 'dashboard-api.js');
-    var api = fs.readFileSync(apiPath, 'utf-8');
-    res.writeHead(200, { 'Content-Type': 'application/javascript' });
-    res.end(api);
   } else if (pathname === '/dashboard.css') {
     var cssPath = path.join(__dirname, 'dashboard.css');
     var css = fs.readFileSync(cssPath, 'utf-8');
@@ -403,5 +338,4 @@ var server = http.createServer(function(req, res) {
 server.listen(port, function() {
   console.log('Dashboard listening on http://localhost:' + port);
   console.log('Click Start LB to begin');
-  ensureClusterStarted();
 });

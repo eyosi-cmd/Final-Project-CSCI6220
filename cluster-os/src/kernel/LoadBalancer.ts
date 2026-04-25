@@ -442,7 +442,6 @@ class LoadBalancer {
   private lbId: string;
   private lbPort: number;
   private dnsRegistered = false;
-  private disableDnsRegistration = (process.env.DISABLE_DNS_REGISTRATION || 'false').toLowerCase() === 'true';
 
   constructor(port: number, workerPoolSize: number = 4, dnsHost: string = 'localhost', dnsRegistrationPort: number = 3000) {
     this.workerPoolSize = workerPoolSize;
@@ -456,11 +455,7 @@ class LoadBalancer {
     this.initializeWorkerPool();
     this.monitorClusterHealth();
     this.startMetricsServer();
-    if (!this.disableDnsRegistration) {
-      this.registerWithDNS(dnsHost, dnsRegistrationPort);
-    } else {
-      console.log('[LoadBalancer] DNS registration disabled by environment');
-    }
+    this.registerWithDNS(dnsHost, dnsRegistrationPort);
   }
 
   private registerWithDNS(dnsHost: string, dnsPort: number) {
@@ -630,9 +625,7 @@ class LoadBalancer {
 
   shutdown() {
     console.log('[LoadBalancer] Initiating graceful shutdown...');
-    if (!this.disableDnsRegistration) {
-      this.deregisterFromDNS();
-    }
+    this.deregisterFromDNS();
     for (var i = 0; i < this.workers.length; i++) {
       this.workers[i].stop();
     }
@@ -642,13 +635,12 @@ class LoadBalancer {
 
 // start lb
 var lb = new LoadBalancer(3010, 4, 'localhost', 3000);
-var disableDnsRegistration = (process.env.DISABLE_DNS_REGISTRATION || 'false').toLowerCase() === 'true';
 
 console.clear();
 console.log('_______________________________________________');
 console.log('________________  Load Balancer   _____________');
 console.log('||          Load Balancer listening on port 3010  ||');
-console.log(disableDnsRegistration ? '||  DNS registration disabled by environment     ||' : '||  DNS Router: localhost:3000 (Registration)     ||');
+console.log('||  DNS Router: localhost:3000 (Registration)     ||');
 console.log('||  [LoadBalancer] Healthy workers: 0             ||');
 console.log('__________________________________________________');
 

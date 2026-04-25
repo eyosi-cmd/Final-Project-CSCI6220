@@ -1,12 +1,8 @@
 {
   "name": "cluster-os",
-  "version": "1.0.1",
+  "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "build": "node scripts/build-dashboard.mjs",
-    "build:render": "node scripts/build-render.mjs",
-    "start": "node dist/render/Dashboard.js",
-    "start:render": "node dist/render/Dashboard.js",
     "start:dns": "node -r ts-node/register src/network/DNSRouter.ts",
     "start:lb": "node -r ts-node/register src/kernel/LoadBalancer.ts",
     "start:worker": "node -r ts-node/register src/worker/WorkerNode.ts",
@@ -20,9 +16,7 @@
   "description": "",
   "devDependencies": {
     "@types/node": "^25.3.0",
-    "ts-node": "^10.9.2"
-  },
-  "dependencies": {
-    "esbuild": "^0.25.12"
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
   }
 }
