@@ -171,13 +171,21 @@ function handleSubmitJob() {
   setButtonLoading(btn, true);
 
   var payloadSize = parsedData.length;
+  var payloadSum = parsedData.reduce(function(sum, val) {
+    return sum + (typeof val === 'number' ? val : 0);
+  }, 0);
+  var payloadMax = Math.max.apply(null, parsedData.filter(function(v) { return typeof v === 'number'; }));
+  var intensity = Math.min(100, (payloadSize * 2) + (payloadSum / 100) + (payloadMax / 50));
+  
   dashboard.jobSubmissions.push({
     id: 'job-' + Date.now(),
     size: payloadSize,
+    sum: payloadSum,
+    max: payloadMax,
     timestamp: Date.now(),
-    intensity: Math.min(100, payloadSize * 5)
+    intensity: intensity
   });
-  console.log('[Job] Submitted job with payload size:', payloadSize, 'Intensity:', Math.min(100, payloadSize * 5));
+  console.log('[Job] Payload: ' + payloadSize + ' items, sum: ' + payloadSum + ', max: ' + payloadMax + ', intensity: ' + intensity.toFixed(2));
 
   fetch(API.submitJob, {
     method: 'POST',
