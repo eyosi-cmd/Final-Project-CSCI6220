@@ -30,3 +30,26 @@ Load Sharing and Node Selection (Chapter 7)
 Distributed Computation and Job Splitting (Chapter 21)
 - Large jobs can be split into chunks, dispatched in parallel to multiple workers, and the results aggregated. This behavior is similar to the MapReduce-style approach from the Google case study: partition, parallel process, then combine.
 - This project provides a hands-on bridge between theory and practice. Future improvements could include bounded queues for backpressure, centralized state for multi-LB deployments, and more robust metrics/observability.
+
+### AI Prompts - Source Documentation
+
+📝 **ChatGPT** was leveraged throughout the project with short, focused prompts for:
+- Brainstorming and validating distributed systems architecture
+**1. Project Ideation & Architecture:**
+- "How to Design a load balancer that distributes jobs across multiple servers"
+- "How would you implement failure detection in a distributed system?"
+- "What scheduling strategies work best for load balancing?"
+- "How can I implement circuit breaker pattern for fault tolerance?"
+
+**2. CSS & Dashboard UI Fixes:**
+- "Fix responsive CSS for dashboard metrics display"
+- "Style card layout for cluster monitoring dashboard"
+- "CSS for real-time metric updates visualization"
+- "fix errors identifed by playwrite integration testing"
+- "How to integrate vercel for frontend deployment"
+
+**3. README & Documentation:**
+- "Rewrite given ReadMe.md file for distributed systems project following given project tree"
+
+
+**Note on AI Usage:** All code modifications and system design decisions were reviewed and validated by me used most of the concepts from the book.
