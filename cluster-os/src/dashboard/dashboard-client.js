@@ -10,6 +10,21 @@ var API = {
   cancelJob: function(id) { return '/api/cancel-job/' + id; }
 };
 
+var TuningCoefficients = {
+  w_u: 1.5,
+  k_t: 25,
+  k_q: 20
+};
+
+function updateTuningCoefficients(newCoefficients) {
+  if (typeof newCoefficients === 'object' && newCoefficients !== null) {
+    if (typeof newCoefficients.w_u === 'number') TuningCoefficients.w_u = newCoefficients.w_u;
+    if (typeof newCoefficients.k_t === 'number') TuningCoefficients.k_t = newCoefficients.k_t;
+    if (typeof newCoefficients.k_q === 'number') TuningCoefficients.k_q = newCoefficients.k_q;
+    console.log('[Config] Tuning Coefficients Updated:', TuningCoefficients);
+  }
+}
+
 // state
 var dashboard = {
   metricsUpdateInterval: null,
@@ -304,7 +319,7 @@ function updateMetrics() {
 
       var utilRatio = metrics.totalWorkers > 0 ? (metrics.activeJobs / metrics.totalWorkers) : 0;
       var payloadSpike = calculatePayloadSpike() / 100;
-      var spikeBoost = payloadSpike * 1.5;
+      var spikeBoost = payloadSpike * TuningCoefficients.w_u;
       var utilWithSpike = Math.min(100, (utilRatio * 100) + (spikeBoost * 100));
       
       dashboard.utilizationHistory.push(utilWithSpike);
@@ -318,7 +333,7 @@ function updateMetrics() {
       var jobsDelta = currentJobCount - dashboard.lastJobCount;
       var throughput = timeDelta > 0 ? Math.max(0, jobsDelta / timeDelta) : 0;
       
-      var payloadBoost = payloadSpike * 25;
+      var payloadBoost = payloadSpike * TuningCoefficients.k_t;
       var throughputWithSpike = throughput + payloadBoost;
 
       dashboard.throughputHistory.push(throughputWithSpike);
@@ -327,7 +342,7 @@ function updateMetrics() {
       }
 
       var baseQueue = metrics.queuedJobs || 0;
-      var queueWithPayload = baseQueue + (payloadSpike * 20);
+      var queueWithPayload = baseQueue + (payloadSpike * TuningCoefficients.k_q);
       
       dashboard.queueHistory.push(queueWithPayload);
       if (dashboard.queueHistory.length > dashboard.maxHistoryPoints) {
