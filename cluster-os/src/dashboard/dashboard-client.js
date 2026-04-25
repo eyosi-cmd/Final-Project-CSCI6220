@@ -175,7 +175,7 @@ function handleSubmitJob() {
     return sum + (typeof val === 'number' ? val : 0);
   }, 0);
   var payloadMax = Math.max.apply(null, parsedData.filter(function(v) { return typeof v === 'number'; }));
-  var intensity = Math.min(100, (payloadSize * 2) + (payloadSum / 100) + (payloadMax / 50));
+  var intensity = (payloadSize * 5) + (payloadSum / 50) + (payloadMax / 20);
   
   dashboard.jobSubmissions.push({
     id: 'job-' + Date.now(),
@@ -304,7 +304,7 @@ function updateMetrics() {
 
       var utilRatio = metrics.totalWorkers > 0 ? (metrics.activeJobs / metrics.totalWorkers) : 0;
       var payloadSpike = calculatePayloadSpike() / 100;
-      var spikeBoost = payloadSpike * 0.6;
+      var spikeBoost = payloadSpike * 1.5;
       var utilWithSpike = Math.min(100, (utilRatio * 100) + (spikeBoost * 100));
       
       dashboard.utilizationHistory.push(utilWithSpike);
@@ -318,7 +318,7 @@ function updateMetrics() {
       var jobsDelta = currentJobCount - dashboard.lastJobCount;
       var throughput = timeDelta > 0 ? Math.max(0, jobsDelta / timeDelta) : 0;
       
-      var payloadBoost = payloadSpike * 15;
+      var payloadBoost = payloadSpike * 25;
       var throughputWithSpike = throughput + payloadBoost;
 
       dashboard.throughputHistory.push(throughputWithSpike);
@@ -327,7 +327,7 @@ function updateMetrics() {
       }
 
       var baseQueue = metrics.queuedJobs || 0;
-      var queueWithPayload = baseQueue + (payloadSpike * 10);
+      var queueWithPayload = baseQueue + (payloadSpike * 20);
       
       dashboard.queueHistory.push(queueWithPayload);
       if (dashboard.queueHistory.length > dashboard.maxHistoryPoints) {
@@ -485,7 +485,7 @@ function drawThroughputGraph() {
   
   var pointSpacing = w / (dashboard.maxHistoryPoints - 1 || 1);
   var startX = w - (dashboard.throughputHistory.length - 1) * pointSpacing;
-  var maxThroughput = Math.max(10, Math.max.apply(null, dashboard.throughputHistory)) || 10;
+  var maxThroughput = Math.max(50, Math.max.apply(null, dashboard.throughputHistory)) || 50;
   
   for (var i = 0; i < dashboard.throughputHistory.length; i++) {
     var x = startX + i * pointSpacing;
@@ -529,7 +529,7 @@ function drawQueueGraph() {
   
   var pointSpacing = w / (dashboard.maxHistoryPoints - 1 || 1);
   var startX = w - (dashboard.queueHistory.length - 1) * pointSpacing;
-  var maxQueue = Math.max(10, Math.max.apply(null, dashboard.queueHistory)) || 10;
+  var maxQueue = Math.max(30, Math.max.apply(null, dashboard.queueHistory)) || 30;
   
   for (var i = 0; i < dashboard.queueHistory.length; i++) {
     var x = startX + i * pointSpacing;
