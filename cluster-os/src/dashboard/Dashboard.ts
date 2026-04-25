@@ -52,7 +52,7 @@ function ensureClusterStarted() {
   dashboardStarted = true;
   if (!processMap.has('loadbalancer')) {
     setTimeout(function() {
-      spawnProcess('loadbalancer', 'tsx', ['src/kernel/LoadBalancer.ts']);
+      spawnProcess('loadbalancer', 'node', [resolveRuntimeEntry('dist/render/LoadBalancer.js', 'src/kernel/LoadBalancer.ts')]);
     }, 1000);
   }
 
@@ -60,7 +60,7 @@ function ensureClusterStarted() {
     for (var i = 0; i < workerCount; i++) {
       var workerName = 'worker-' + i;
       if (!processMap.has(workerName)) {
-        spawnProcess(workerName, 'tsx', ['src/worker/WorkerNode.ts']);
+        spawnProcess(workerName, 'node', [resolveRuntimeEntry('dist/render/WorkerNode.js', 'src/worker/WorkerNode.ts')]);
       }
     }
   }, 2000);
@@ -213,6 +213,15 @@ function spawnProcess(name: string, command: string, args: string[]): { error?: 
   }
 
   return { status: name + ' started succesfully (PID: ' + proc.pid + ')' };
+}
+
+function resolveRuntimeEntry(builtRelativePath: string, sourceRelativePath: string) {
+  var builtPath = path.join(process.cwd(), builtRelativePath);
+  if (fs.existsSync(builtPath)) {
+    return builtPath;
+  }
+
+  return path.join(process.cwd(), sourceRelativePath);
 }
 
 function killProcess(name: string): { error?: string; status?: string } {

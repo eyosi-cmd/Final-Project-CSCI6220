@@ -5,13 +5,13 @@
   "scripts": {
     "build": "node scripts/build-dashboard.mjs",
     "build:render": "node scripts/build-render.mjs",
-    "start": "tsx src/dashboard/Dashboard.ts",
-    "start:render": "tsx src/dashboard/Dashboard.ts",
-    "start:dns": "tsx src/network/DNSRouter.ts",
-    "start:lb": "tsx src/kernel/LoadBalancer.ts",
-    "start:worker": "tsx src/worker/WorkerNode.ts",
-    "start:client": "tsx src/client/UserClient.ts",
-    "start:dashboard": "tsx src/dashboard/Dashboard.ts",
+    "start": "node dist/render/Dashboard.js",
+    "start:render": "node dist/render/Dashboard.js",
+    "start:dns": "node -r ts-node/register src/network/DNSRouter.ts",
+    "start:lb": "node -r ts-node/register src/kernel/LoadBalancer.ts",
+    "start:worker": "node -r ts-node/register src/worker/WorkerNode.ts",
+    "start:client": "node -r ts-node/register src/client/UserClient.ts",
+    "start:dashboard": "node -r ts-node/register src/dashboard/Dashboard.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -23,6 +23,6 @@
     "ts-node": "^10.9.2"
   },
   "dependencies": {
-    "tsx": "^4.20.5"
+    "esbuild": "^0.25.12"
   }
 }
