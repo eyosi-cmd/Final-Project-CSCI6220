@@ -1,5 +1,6 @@
+import * as net from 'net';
 import { FailureDetector } from '../middleware/FailureDetector';
-import { CircuitBreakerStatus } from '../common/types';
+import { CircuitBreakerStatus, SocketHealthMetrics } from '../common/types';
 
 export class Scheduler {
   private failureDetector: FailureDetector;
@@ -69,5 +70,36 @@ export class Scheduler {
 
   getCircuitBreakerState(workerId: string): CircuitBreakerStatus | undefined {
     return this.circuitBreakerState.get(workerId);
+  }
+
+  trackWorkerHealthMetrics(s: Map<string, net.Socket>): SocketHealthMetrics {
+    const n = this.failureDetector.getAllNodes();
+    let a = 0;
+    let w = n.length;
+    
+    for (let i = 0; i < n.length; i++) {
+      const load = this.failureDetector.getNodeLoad(n[i]);
+      if (load > 0) {
+        a++;
+      }
+    }
+    
+    const u = w > 0 ? a / w : 0;
+    
+    let h = 0;
+    const t = s.size;
+    
+    for (const [, socket] of s) {
+      if (!socket.destroyed && socket.writable) {
+        h++;
+      }
+    }
+    
+    return {
+      utilization: u,
+      healthy: h / (t > 0 ? t : 1) > 0.5,
+      healthyConnections: h,
+      totalConnections: t
+    };
   }
 }

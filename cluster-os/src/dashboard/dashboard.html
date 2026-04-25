@@ -76,12 +76,35 @@
                             <div class="metric-subtext" id="text-queued-jobs">jobs</div>
                         </div>
                     </div>
-                    <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #ddd;">
+                    <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #2a3f5f;">
                         <h3 style="margin: 0 0 10px 0; font-size: 13px; color: #ffffff;">System Health</h3>
-                        <div id="system-health" style="font-size: 12px; color: #ffffff; line-height: 1.6;">
+                        <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+                            <!-- Utilization Graph -->
+                            <div style="flex: 1; min-width: 220px;">
+                                <div style="font-size: 11px; color: #b0c4de; margin-bottom: 8px; margin-left: 2px;">Cluster Utilization %</div>
+                                <div style="margin: 0;">
+                                    <canvas id="health-graph" width="200" height="150" style="background: #000000; border-radius: 0; margin: 0; padding: 0; display: block; width: 100%;"></canvas>
+                                </div>
+                            </div>
+                            <!-- Throughput Graph -->
+                            <div style="flex: 1; min-width: 220px;">
+                                <div style="font-size: 11px; color: #b0c4de; margin-bottom: 8px; margin-left: 2px;">Request Throughput (jobs/sec)</div>
+                                <div style="margin: 0;">
+                                    <canvas id="throughput-graph" width="200" height="150" style="background: #000000; border-radius: 0; margin: 0; padding: 0; display: block; width: 100%;"></canvas>
+                                </div>
+                            </div>
+                            <!-- Queue Depth Graph -->
+                            <div style="flex: 1; min-width: 220px;">
+                                <div style="font-size: 11px; color: #b0c4de; margin-bottom: 8px; margin-left: 2px;">Queue Depth (pending jobs)</div>
+                                <div style="margin: 0;">
+                                    <canvas id="queue-graph" width="200" height="150" style="background: #000000; border-radius: 0; margin: 0; padding: 0; display: block; width: 100%;"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="system-health" style="font-size: 12px; color: #ffffff; line-height: 1.6; margin-top: 15px;">
                             <div><strong>Status:</strong> <span id="lb-status" style="color: #ffffff;">Waiting for Load Balancer...</span></div>
                             <div><strong>Health:</strong> <span id="health-indicator">--</span></div>
-                            <div><strong>Load Balance:</strong> <span id="load-distribution">--</span></div>
+                            <div><strong>Utilization:</strong> <span id="load-distribution">--</span></div>
                         </div>
                     </div>
                 </div>
@@ -117,7 +140,7 @@
                     <div class="form-section">
                         <label for="job-data" class="form-label">Job Payload (JSON Array)</label>
                         <div class="input-wrapper">
-                            <textarea id="job-data" class="form-input" style="color: #ffffff;" placeholder="[1, 2, 3, 4, 5]"></textarea>
+                            <textarea id="job-data" class="form-input" placeholder="[1, 2, 3, 4, 5]"></textarea>
                         </div>
                         <div style="font-size: 11px; color: #ffffff; margin-bottom: 8px;">
                             Example: <code style="color: #22c55e;">[10, 20, 30]</code> → Elements doubled and distributed across workers

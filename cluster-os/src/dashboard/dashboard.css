@@ -268,8 +268,8 @@ body {
     border: 1px solid var(--border);
     font-family: monospace;
     font-size: 13px;
-    background: #ffffff;
-    color: var(--text-primary);
+    background: #2a3f5f;
+    color: #d0d8e0;
     border-radius: 4px;
     box-sizing: border-box;
     resize: vertical;
@@ -279,6 +279,11 @@ body {
     outline: none;
     border-color: var(--accent);
     box-shadow: 0 0 6px var(--accent-glow);
+}
+
+.form-input::placeholder {
+    color: #8a98b0;
+    opacity: 0.6;
 }
 
 .output-section {

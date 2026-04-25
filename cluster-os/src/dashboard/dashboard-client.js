@@ -15,7 +15,14 @@ var dashboard = {
   metricsUpdateInterval: null,
   jobResultCheckInterval: null,
   currentJobId: null,
-  resultHistory: []
+  resultHistory: [],
+  utilizationHistory: [],
+  throughputHistory: [],
+  queueHistory: [],
+  maxHistoryPoints: 60,
+  graphAnimationId: null,
+  lastJobCount: 0,
+  lastUpdateTime: Date.now()
 };
 
 // init
@@ -186,11 +193,12 @@ function handleSubmitJob() {
 // ==================== POLLING ====================
 
 function startMetricsUpdate() {
-  console.log('[Metrics] Starting dynamic metrics update every 2 seconds');
+  console.log('[Metrics] Starting dynamic metrics update every 500ms');
   updateMetrics();
   dashboard.metricsUpdateInterval = setInterval(function() {
     updateMetrics();
-  }, 2000);
+  }, 500);
+  startGraphAnimation();
 }
 
 function updateMetrics() {
@@ -253,6 +261,32 @@ function updateMetrics() {
         loadEl.textContent = '~' + avgLoad + ' jobs/worker (' + metrics.activeJobs + ' total)';
       }
 
+      var utilRatio = metrics.totalWorkers > 0 ? (metrics.activeJobs / metrics.totalWorkers) : 0;
+      dashboard.utilizationHistory.push(utilRatio * 100);
+      if (dashboard.utilizationHistory.length > dashboard.maxHistoryPoints) {
+        dashboard.utilizationHistory.shift();
+      }
+
+      var currentJobCount = metrics.activeJobs || 0;
+      var now = Date.now();
+      var timeDelta = (now - dashboard.lastUpdateTime) / 1000;
+      var jobsDelta = currentJobCount - dashboard.lastJobCount;
+      var throughput = timeDelta > 0 ? Math.max(0, jobsDelta / timeDelta) : 0;
+
+      dashboard.throughputHistory.push(throughput);
+      if (dashboard.throughputHistory.length > dashboard.maxHistoryPoints) {
+        dashboard.throughputHistory.shift();
+      }
+
+      dashboard.queueHistory.push(metrics.queuedJobs || 0);
+      if (dashboard.queueHistory.length > dashboard.maxHistoryPoints) {
+        dashboard.queueHistory.shift();
+      }
+
+      dashboard.lastJobCount = currentJobCount;
+      dashboard.lastUpdateTime = now;
+      drawHealthGraph();
+
       console.log('[Metrics] Updated:', {
         healthy: metrics.healthyWorkers,
         total: metrics.totalWorkers,
@@ -310,6 +344,156 @@ function getStatusColor(state) {
     default:
       return { bg: 'rgba(100, 116, 139, 0.2)', text: '#cbd5e1' };
   }
+}
+
+function startGraphAnimation() {
+  function animate() {
+    drawHealthGraph();
+    drawThroughputGraph();
+    drawQueueGraph();
+    dashboard.graphAnimationId = requestAnimationFrame(animate);
+  }
+  if (!dashboard.graphAnimationId) {
+    animate();
+  }
+}
+
+function drawHealthGraph() {
+  var canvas = document.getElementById('health-graph');
+  if (!canvas) return;
+  
+  var ctx = canvas.getContext('2d');
+  var w = canvas.offsetWidth;
+  var h = canvas.offsetHeight;
+  
+  canvas.width = w;
+  canvas.height = h;
+  
+  ctx.fillStyle = '#000000';
+  ctx.fillRect(0, 0, w, h);
+  
+  if (dashboard.utilizationHistory.length === 0) return;
+  
+  ctx.strokeStyle = '#22c55e';
+  ctx.lineWidth = 2.5;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  
+  var pointSpacing = w / (dashboard.maxHistoryPoints - 1 || 1);
+  var startX = w - (dashboard.utilizationHistory.length - 1) * pointSpacing;
+  
+  for (var i = 0; i < dashboard.utilizationHistory.length; i++) {
+    var x = startX + i * pointSpacing;
+    var y = h - (dashboard.utilizationHistory[i] / 100) * h;
+    if (i === 0) {
+      ctx.moveTo(x, y);
+    } else {
+      ctx.lineTo(x, y);
+    }
+  }
+  
+  ctx.stroke();
+  
+  ctx.fillStyle = 'rgba(34, 197, 94, 0.15)';
+  ctx.lineTo(w, h);
+  ctx.lineTo(startX, h);
+  ctx.closePath();
+  ctx.fill();
+  
+  ctx.fillStyle = '#6a85a8';
+  ctx.font = '11px Arial';
+  ctx.textAlign = 'right';
+  ctx.fillText('100%', w - 5, 12);
+  ctx.fillText('0%', w - 5, h - 2);
+}
+
+function drawThroughputGraph() {
+  var canvas = document.getElementById('throughput-graph');
+  if (!canvas || !dashboard.throughputHistory) return;
+  
+  var ctx = canvas.getContext('2d');
+  var w = canvas.offsetWidth;
+  var h = canvas.offsetHeight;
+  
+  canvas.width = w;
+  canvas.height = h;
+  
+  ctx.fillStyle = '#000000';
+  ctx.fillRect(0, 0, w, h);
+  
+  if (dashboard.throughputHistory.length === 0) return;
+  
+  ctx.strokeStyle = '#22c55e';
+  ctx.lineWidth = 2.5;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  
+  var pointSpacing = w / (dashboard.maxHistoryPoints - 1 || 1);
+  var startX = w - (dashboard.throughputHistory.length - 1) * pointSpacing;
+  var maxThroughput = Math.max(10, Math.max.apply(null, dashboard.throughputHistory)) || 10;
+  
+  for (var i = 0; i < dashboard.throughputHistory.length; i++) {
+    var x = startX + i * pointSpacing;
+    var y = h - (dashboard.throughputHistory[i] / maxThroughput) * h;
+    if (i === 0) {
+      ctx.moveTo(x, y);
+    } else {
+      ctx.lineTo(x, y);
+    }
+  }
+  
+  ctx.stroke();
+  ctx.fillStyle = 'rgba(34, 197, 94, 0.15)';
+  ctx.lineTo(w, h);
+  ctx.lineTo(startX, h);
+  ctx.closePath();
+  ctx.fill();
+}
+
+function drawQueueGraph() {
+  var canvas = document.getElementById('queue-graph');
+  if (!canvas || !dashboard.queueHistory) return;
+  
+  var ctx = canvas.getContext('2d');
+  var w = canvas.offsetWidth;
+  var h = canvas.offsetHeight;
+  
+  canvas.width = w;
+  canvas.height = h;
+  
+  ctx.fillStyle = '#000000';
+  ctx.fillRect(0, 0, w, h);
+  
+  if (dashboard.queueHistory.length === 0) return;
+  
+  ctx.strokeStyle = '#f59e0b';
+  ctx.lineWidth = 2.5;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  
+  var pointSpacing = w / (dashboard.maxHistoryPoints - 1 || 1);
+  var startX = w - (dashboard.queueHistory.length - 1) * pointSpacing;
+  var maxQueue = Math.max(10, Math.max.apply(null, dashboard.queueHistory)) || 10;
+  
+  for (var i = 0; i < dashboard.queueHistory.length; i++) {
+    var x = startX + i * pointSpacing;
+    var y = h - (dashboard.queueHistory[i] / maxQueue) * h;
+    if (i === 0) {
+      ctx.moveTo(x, y);
+    } else {
+      ctx.lineTo(x, y);
+    }
+  }
+  
+  ctx.stroke();
+  ctx.fillStyle = 'rgba(245, 158, 11, 0.15)';
+  ctx.lineTo(w, h);
+  ctx.lineTo(startX, h);
+  ctx.closePath();
+  ctx.fill();
 }
 
 function startJobResultCheck() {
@@ -405,5 +589,8 @@ window.addEventListener('beforeunload', function() {
   }
   if (dashboard.jobResultCheckInterval) {
     clearInterval(dashboard.jobResultCheckInterval);
+  }
+  if (dashboard.graphAnimationId) {
+    cancelAnimationFrame(dashboard.graphAnimationId);
   }
 });

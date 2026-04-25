@@ -69,16 +69,25 @@ export class FailureDetector {
 
     var zScore = (timeSinceLastHeartbeat - meanInterval) / stdDev;
     var phi = -Math.log10(Math.exp(-zScore) / (1 + Math.exp(-zScore))) + Math.log10(0.1);
+    phi = Math.max(0, Math.min(10, phi));
 
-    return Math.max(0, Math.min(10, phi));
+    if (phi > this.phiThreshold * 0.8) {
+      console.log(`[FailureDetector] Phi suspicion for ${nodeId.substring(0,8)}: ${phi.toFixed(2)} (threshold: ${this.phiThreshold}) | TimeSinceHB: ${timeSinceLastHeartbeat}ms, MeanInterval: ${meanInterval.toFixed(0)}ms`);
+    }
+
+    return phi;
   }
 
   getHealthyNodes(): string[] {
     const healthy: string[] = [];
+    const unhealthy: string[] = [];
     for (const [id] of this.heartbeats) {
       const phi = this.computePhiSuspicion(id);
       if (phi < this.phiThreshold) {
         healthy.push(id);
+      } else {
+        unhealthy.push(id);
+        console.log(`[FailureDetector] Node ${id.substring(0,8)} marked UNHEALTHY (Phi: ${phi.toFixed(2)} >= ${this.phiThreshold})`);
       }
     }
     return healthy;
@@ -135,6 +144,7 @@ export class FailureDetector {
       }
     }
     if (mostUnhealthyId) {
+      console.log(`[FailureDetector] REMOVING most unhealthy node ${mostUnhealthyId.substring(0,8)} with Phi: ${maxPhi.toFixed(2)}`);
       this.removeNode(mostUnhealthyId);
     }
     return mostUnhealthyId;

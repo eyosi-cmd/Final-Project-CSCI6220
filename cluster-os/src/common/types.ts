@@ -48,3 +48,10 @@ export interface CircuitBreakerStatus {
   lastSuccessTime: number;
   probeAttempts: number;
 }
+
+export interface SocketHealthMetrics {
+  utilization: number;
+  healthy: boolean;
+  healthyConnections: number;
+  totalConnections: number;
+}

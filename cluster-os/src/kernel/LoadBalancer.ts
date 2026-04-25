@@ -217,7 +217,12 @@ class Worker {
 
   private handleJobTimeout(jobContext: JobContext) {
     if (jobContext.assignedWorker) {
+      console.log('[Worker-' + this.id + '] Job ' + jobContext.message.requestId + ' timed out on worker ' + jobContext.assignedWorker + ' | Recording failure...');
       this.recordWorkerFailure(jobContext.assignedWorker);
+      var cbState = this.circuitBreakerState.get(jobContext.assignedWorker);
+      if (cbState) {
+        console.log('[Worker-' + this.id + '] Worker ' + jobContext.assignedWorker + ' failure count: ' + cbState.consecutiveFailures + ' / ' + this.circuitBreakerConfig.failureThreshold);
+      }
     }
 
     if (jobContext.retryCount < jobContext.maxRetries) {
@@ -634,6 +639,8 @@ class LoadBalancer {
           activeJobs += (self.workers[i] as any).getActiveJobsCount();
         }
         var circuitBreakerStates = {};
+        
+        // First, collect circuit breaker states from all workers
         for (var i = 0; i < self.workers.length; i++) {
           var w = self.workers[i];
           if (typeof (w as any).getCircuitBreakerStates === 'function') {
@@ -643,9 +650,18 @@ class LoadBalancer {
             }
           }
         }
+        
+        // Initialize circuit breaker states for any healthy nodes that don't have states yet
+        var allHealthyNodes = self.failureDetector.getHealthyNodes();
+        for (var h = 0; h < allHealthyNodes.length; h++) {
+          var nodeId = allHealthyNodes[h];
+          if (!circuitBreakerStates.hasOwnProperty(nodeId)) {
+            circuitBreakerStates[nodeId] = 'CLOSED';
+          }
+        }
 
         var queuedJobs = self.dispatcher.getQueueSize();
-        var healthyNodes = self.failureDetector.getHealthyNodes().length;
+        var healthyNodes = allHealthyNodes.length;
         var totalWorkerCount = self.workers.length;
         
         if (healthyNodes > totalWorkerCount) {
@@ -661,7 +677,7 @@ class LoadBalancer {
           timestamp: Date.now()
         };
 
-        console.log('[LoadBalancer] Metrics request: active=' + activeJobs + ', queued=' + queuedJobs + ', healthy=' + healthyNodes + '/' + totalWorkerCount);
+        console.log('[LoadBalancer] Metrics request: active=' + activeJobs + ', queued=' + queuedJobs + ', healthy=' + healthyNodes + '/' + totalWorkerCount + ', circuit breakers=' + Object.keys(circuitBreakerStates).length);
         res.writeHead(200);
         res.end(JSON.stringify(metrics));
       } else {
