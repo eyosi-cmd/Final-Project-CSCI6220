@@ -1,0 +1,61 @@
+name: Deploy to Vercel
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  deploy:
+    name: Build & Deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: cluster-os/package-lock.json
+
+      - name: Install dependencies
+        working-directory: cluster-os
+        run: npm ci
+
+      - name: Build TypeScript
+        working-directory: cluster-os
+        run: npx tsc
+
+      # ── Services below CANNOT run on Vercel (raw TCP / persistent processes) ──
+      # DNSRouter   — raw TCP server (:2000, :3000)
+      # LoadBalancer — raw TCP server (:3010) + metrics HTTP (:9001)
+      # WorkerNode  — persistent TCP client with heartbeat loop
+      # Dashboard   — Node.js HTTP server that spawns child processes
+      #
+      # Run all of them locally with:  npm run start:all
+      # ─────────────────────────────────────────────────────────────────────────
+      # Only dist/render/server.js (Express REST API) and dist/index.html
+      # (static frontend) are deployed to Vercel below.
+
+      - name: Deploy to Vercel (Production)
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: prj_DAUG8cNfD1m41wyvPfT1X2mMMQrr
+          working-directory: cluster-os
+          vercel-args: '--prod'
+
+      - name: Deploy to Vercel (Preview)
+        if: github.event_name == 'pull_request'
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: prj_DAUG8cNfD1m41wyvPfT1X2mMMQrr
+          working-directory: cluster-os
