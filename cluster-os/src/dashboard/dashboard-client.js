@@ -337,6 +337,8 @@ function updateMetrics() {
       dashboard.lastJobCount = currentJobCount;
       dashboard.lastUpdateTime = now;
       drawHealthGraph();
+      drawThroughputGraph();
+      drawQueueGraph();
 
       console.log('[Metrics] Updated:', {
         healthy: metrics.healthyWorkers,
