@@ -357,6 +357,8 @@ function addLog(message, type = 'info') {
   const terminal = document.getElementById('job-results');
   if (!terminal) return;
 
+  terminal.style.color = '';
+
   const timestamp = new Date().toLocaleTimeString();
   const prefix = `[${timestamp}]`;
 
@@ -369,6 +371,7 @@ function clearJobResults() {
   const terminal = document.getElementById('job-results');
   if (terminal) {
     terminal.textContent = 'Ready to dispatch jobs...\n';
+    terminal.style.color = '#22c55e';
   }
 }
 

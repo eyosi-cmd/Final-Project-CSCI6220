@@ -1,4 +1,4 @@
-﻿/* ── ClusterOS Dashboard – Dark Navy Theme (matches banner) ── */
+﻿
 
 :root {
     --bg-page:       #080f1e;
@@ -268,7 +268,7 @@ body {
     border: 1px solid var(--border);
     font-family: monospace;
     font-size: 13px;
-    background: var(--bg-surface);
+    background: #ffffff;
     color: var(--text-primary);
     border-radius: 4px;
     box-sizing: border-box;
