@@ -5,16 +5,35 @@ body {
     padding: 10px;
 }
 
+.banner-section {
+    width: 100%;
+    height: 200px;
+    margin-bottom: 20px;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 4px 12px rgba(30, 144, 255, 0.15);
+    background: linear-gradient(135deg, #0a1628 0%, #1a2a3a 100%);
+}
+
+.banner-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
 .dashboard-container {
     width: 900px;
     margin: 0 auto;
 }
 
 .header {
-    background: #333;
+    background: linear-gradient(to right, #1a1a1a 0%, #2a2a2a 100%);
     color: white;
-    padding: 15px;
+    padding: 12px 15px;
     margin-bottom: 20px;
+    border-left: 4px solid #1e90ff;
+    border-radius: 4px;
 }
 
 .header h1 {
