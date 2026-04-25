@@ -52,7 +52,7 @@ function ensureClusterStarted() {
   dashboardStarted = true;
   if (!processMap.has('loadbalancer')) {
     setTimeout(function() {
-      spawnProcess('loadbalancer', 'node', ['-r', 'ts-node/register', 'src/kernel/LoadBalancer.ts']);
+      spawnProcess('loadbalancer', 'tsx', ['src/kernel/LoadBalancer.ts']);
     }, 1000);
   }
 
@@ -60,7 +60,7 @@ function ensureClusterStarted() {
     for (var i = 0; i < workerCount; i++) {
       var workerName = 'worker-' + i;
       if (!processMap.has(workerName)) {
-        spawnProcess(workerName, 'node', ['-r', 'ts-node/register', 'src/worker/WorkerNode.ts']);
+        spawnProcess(workerName, 'tsx', ['src/worker/WorkerNode.ts']);
       }
     }
   }, 2000);
