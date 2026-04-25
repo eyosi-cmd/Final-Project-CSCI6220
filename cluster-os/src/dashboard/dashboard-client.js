@@ -478,6 +478,66 @@ function updateMetrics() {
     })
     .catch(function(err) {
       console.error('[Metrics] Fetch failed:', err.message);
+      
+      // Reset metrics to 0 when LB is offline
+      var healthyEl = document.getElementById('metric-healthy');
+      var totalEl = document.getElementById('metric-total');
+      var activeEl = document.getElementById('metric-active');
+      var queuedEl = document.getElementById('metric-queued');
+
+      if (healthyEl) healthyEl.textContent = '0';
+      if (totalEl) totalEl.textContent = '0';
+      if (activeEl) activeEl.textContent = '0';
+      if (queuedEl) queuedEl.textContent = '0';
+
+      var healthyTextEl = document.getElementById('text-healthy-workers');
+      var totalTextEl = document.getElementById('text-total-workers');
+      var activeTextEl = document.getElementById('text-active-jobs');
+      var queuedTextEl = document.getElementById('text-queued-jobs');
+
+      if (healthyTextEl) healthyTextEl.textContent = 'workers';
+      if (totalTextEl) totalTextEl.textContent = 'workers';
+      if (activeTextEl) activeTextEl.textContent = 'jobs';
+      if (queuedTextEl) queuedTextEl.textContent = 'jobs';
+
+      var healthStatus = document.getElementById('lb-status');
+      if (healthStatus) {
+        healthStatus.textContent = 'Load Balancer Offline';
+        healthStatus.classList.remove('ready');
+      }
+
+      var healthEl = document.getElementById('health-indicator');
+      if (healthEl) {
+        healthEl.textContent = '🔴 0% health';
+      }
+
+      var loadEl = document.getElementById('load-distribution');
+      if (loadEl) {
+        loadEl.textContent = '~0 jobs/worker (0 total)';
+      }
+
+      // Add zero values to graph histories for visualization of offline state
+      dashboard.utilizationHistory.push(0);
+      if (dashboard.utilizationHistory.length > dashboard.maxHistoryPoints) {
+        dashboard.utilizationHistory.shift();
+      }
+
+      dashboard.throughputHistory.push(0);
+      if (dashboard.throughputHistory.length > dashboard.maxHistoryPoints) {
+        dashboard.throughputHistory.shift();
+      }
+
+      dashboard.queueHistory.push(0);
+      if (dashboard.queueHistory.length > dashboard.maxHistoryPoints) {
+        dashboard.queueHistory.shift();
+      }
+
+      drawHealthGraph();
+      drawThroughputGraph();
+      drawQueueGraph();
+
+      // Clear circuit breakers when LB is offline
+      updateCircuitBreakers({});
     });
 }
 
