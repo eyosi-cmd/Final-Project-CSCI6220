@@ -256,6 +256,15 @@ var server = http.createServer(function(req, res) {
     }
     var lastWorker = workers[workers.length - 1];
     var result = killProcess(lastWorker);
+    
+    if (lbClientConnection && lbClientConnection.writable) {
+      var removeMessage = {
+        type: 'REMOVE_UNHEALTHY_NODE'
+      };
+      lbClientConnection.write(JSON.stringify(removeMessage) + '\n');
+      console.log('[DASHBOARD] Sent REMOVE_UNHEALTHY_NODE message');
+    }
+    
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(result));
   } else if (pathname === '/api/submit-job') {

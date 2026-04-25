@@ -13,6 +13,7 @@
             <div class="header-content">
                 <div class="logo-section">
                     <h1>ClusterOS</h1>
+                    <p style="margin: 3px 0; color: #aaa; font-size: 12px;">Distributed Load Balancer as Kernel</p>
                 </div>
             </div>
         </header>
@@ -45,29 +46,37 @@
             <!-- Metrics Panel -->
             <section class="panel metrics-panel">
                 <div class="panel-header">
-                    <h2>Live Metrics</h2>
+                    <h2>Cluster Metrics</h2>
                 </div>
                 <div class="panel-body">
                     <div class="metrics-container">
                         <div class="metric-card">
                             <div class="metric-header">Healthy</div>
                             <div class="metric-value" id="metric-healthy">0</div>
-                            <div class="metric-subtext">workers</div>
+                            <div class="metric-subtext" id="text-healthy-workers">workers</div>
                         </div>
                         <div class="metric-card">
                             <div class="metric-header">Total</div>
                             <div class="metric-value" id="metric-total">0</div>
-                            <div class="metric-subtext">total</div>
+                            <div class="metric-subtext" id="text-total-workers">workers</div>
                         </div>
                         <div class="metric-card">
                             <div class="metric-header">Active</div>
                             <div class="metric-value" id="metric-active">0</div>
-                            <div class="metric-subtext">jobs</div>
+                            <div class="metric-subtext" id="text-active-jobs">jobs</div>
                         </div>
                         <div class="metric-card">
                             <div class="metric-header">Queued</div>
                             <div class="metric-value" id="metric-queued">0</div>
-                            <div class="metric-subtext">jobs</div>
+                            <div class="metric-subtext" id="text-queued-jobs">jobs</div>
+                        </div>
+                    </div>
+                    <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #ddd;">
+                        <h3 style="margin: 0 0 10px 0; font-size: 13px; color: #666;">System Health</h3>
+                        <div id="system-health" style="font-size: 12px; color: #555; line-height: 1.6;">
+                            <div><strong>Status:</strong> <span id="lb-status" style="color: #999;">Waiting for Load Balancer...</span></div>
+                            <div><strong>Health:</strong> <span id="health-indicator">--</span></div>
+                            <div><strong>Load Balance:</strong> <span id="load-distribution">--</span></div>
                         </div>
                     </div>
                 </div>
@@ -76,14 +85,20 @@
             <!-- Circuit Breakers Panel -->
             <section class="panel circuit-panel">
                 <div class="panel-header">
-                    <h2>Circuit Status</h2>
+                    <h2>Worker Health (Circuit Breaker States)</h2>
                     <div class="panel-timestamp">
                         <span id="circuit-status-timestamp">--:--:--</span>
                     </div>
                 </div>
                 <div class="panel-body">
+                    <div style="font-size: 11px; color: #666; margin-bottom: 10px;">
+                        <strong>States:</strong> 
+                        <span style="display: inline-block; background: rgba(16, 185, 129, 0.2); color: #10b981; padding: 2px 6px; margin-right: 8px; border-radius: 3px;">● CLOSED (healthy)</span>
+                        <span style="display: inline-block; background: rgba(245, 158, 11, 0.2); color: #f59e0b; padding: 2px 6px; margin-right: 8px; border-radius: 3px;">● HALF_OPEN</span>
+                        <span style="display: inline-block; background: rgba(239, 68, 68, 0.2); color: #ef4444; padding: 2px 6px; border-radius: 3px;">● OPEN (failed)</span>
+                    </div>
                     <div id="circuit-breakers" class="circuit-list">
-                        <div class="empty-state">No circuits</div>
+                        <div class="empty-state">No workers connected</div>
                     </div>
                 </div>
             </section>
@@ -95,9 +110,12 @@
                 </div>
                 <div class="panel-body">
                     <div class="form-section">
-                        <label for="job-data" class="form-label">Job Payload</label>
+                        <label for="job-data" class="form-label">Job Payload (JSON Array)</label>
                         <div class="input-wrapper">
                             <textarea id="job-data" class="form-input" placeholder="[1, 2, 3, 4, 5]"></textarea>
+                        </div>
+                        <div style="font-size: 11px; color: #666; margin-bottom: 8px;">
+                            Example: <code>[10, 20, 30]</code> → Elements doubled and distributed across workers
                         </div>
                         <button id="submit-job" class="btn btn-accent">Dispatch Job</button>
                     </div>
@@ -106,7 +124,33 @@
                             <span>Results</span>
                             <button id="clear-output" class="btn-small">Clear</button>
                         </div>
-                        <pre id="job-results" class="terminal">Ready...</pre>
+                        <pre id="job-results" class="terminal">Ready to submit jobs...</pre>
+                    </div>
+                </div>
+            </section>
+
+            <section class="panel info-panel">
+                <div class="panel-header">
+                    <h2>Architecture & Key Concepts</h2>
+                </div>
+                <div class="panel-body">
+                    <div style="font-size: 12px; line-height: 1.8; color: #555;">
+                        <div style="margin-bottom: 12px;">
+                            <strong>Load Balancer (Single System Image Kernel)</strong><br/>
+                            Distributes incoming requests to provide location transparency, ensuring the cluster appears to the user as a single, integrated computing resource.
+                        </div>
+                        <div style="margin-bottom: 12px;">
+                            <strong>Failure Detection (Phi-Suspicion)</strong><br/>
+                            Acts as an unreliable failure detector by analyzing heartbeat intervals to estimate suspicion levels, allowing the system to adapt to network delays without relying on rigid timeouts.
+                        </div>
+                        <div style="margin-bottom: 12px;">
+                            <strong>Circuit Breaker Pattern</strong><br/>
+                            Enhances fault tolerance by isolating failing components across three states—Closed, Open, and Half-Open—to prevent local errors from causing cascading system-wide failures.
+                        </div>
+                        <div>
+                            <strong>Job Aggregation (MapReduce)</strong><br/>
+                            Employs a divide-and-conquer strategy where tasks are partitioned for parallel processing and then reassembled to provide a consistent, ordered result to the client.
+                        </div>
                     </div>
                 </div>
             </section>

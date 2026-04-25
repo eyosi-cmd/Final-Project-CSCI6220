@@ -29,4 +29,4 @@ Load Sharing and Node Selection (Chapter 7)
 
 Distributed Computation and Job Splitting (Chapter 21)
 - Large jobs can be split into chunks, dispatched in parallel to multiple workers, and the results aggregated. This behavior is similar to the MapReduce-style approach from the Google case study: partition, parallel process, then combine.
-- I beleive this project provides a solid, hands-on bridge between theory and practice. Future improvements could include bounded queues for backpressure, centralized state for multi-LB deployments, and more robust metrics/observability.
+- This project provides a hands-on bridge between theory and practice. Future improvements could include bounded queues for backpressure, centralized state for multi-LB deployments, and more robust metrics/observability.

@@ -1,6 +1,7 @@
 import { TCPTransport } from '../transport/TCPTransport';
 import { FailureDetector } from '../middleware/FailureDetector';
 import { Scheduler } from './Scheduler';
+import { LamportClock } from './lamportClock';
 import { ClusterMessage, JobContext, ClientAffinityRecord, CircuitBreakerStatus } from '../common/types';
 import { EventEmitter } from 'events';
 import * as http from 'http';
@@ -64,9 +65,10 @@ class Worker {
   private dispatcher: Dispatcher;
   private failureDetector: FailureDetector;
   private scheduler: Scheduler;
+  private clock: LamportClock;
   private requestToClient: Map<string, string> = new Map();
   private nodeConnections: Map<string, boolean> = new Map();
-  private aggregationMap: Map<string, { totalChunks: number; receivedChunks: number; aggregatedData: any[] }> = new Map();
+  private aggregationMap: Map<string, { totalChunks: number; receivedChunks: number; chunkResults: any[][] }> = new Map();
   private jobContextMap: Map<string, JobContext> = new Map();
   private jobTimeouts: Map<string, NodeJS.Timeout> = new Map();
   private circuitBreakerState: Map<string, CircuitBreakerStatus> = new Map();
@@ -88,6 +90,7 @@ class Worker {
     this.dispatcher = dispatcher;
     this.failureDetector = failureDetector;
     this.scheduler = scheduler;
+    this.clock = new LamportClock('loadBalancer-' + id);
   }
 
   start() {
@@ -114,23 +117,41 @@ class Worker {
   private processMessage(id: string, message: ClusterMessage) {
     this.nodeConnections.set(id, true);
 
+    if (message.lamportTime !== undefined) {
+      this.clock.update(message.lamportTime);
+    }
+
     if (message.type === 'HEARTBEAT') {
-      this.failureDetector.updateHeartbeat(id, message.payload);
+      this.failureDetector.updateHeartbeat(id, message.payload, message.lamportTime);
     } else if (message.type === 'JOB_SUBMIT') {
       this.handleJobSubmit(id, message);
     } else if (message.type === 'SUB_JOB_RESULT') {
       this.handleSubJobResult(id, message);
     } else if (message.type === 'CLUSTER_STATUS') {
       var healthyNodes = this.failureDetector.getHealthyNodes();
+      var lamportTime = this.clock.increment();
       var reply = {
         type: 'CLUSTER_STATUS_REPLY' as any,
         senderId: 'load-balancer',
         requestId: message.requestId,
         payload: healthyNodes,
-        priority: 'HIGH'
+        priority: 'HIGH',
+        lamportTime: lamportTime,
+        nodeId: this.clock.getNodeId()
       } as ClusterMessage;
       this.dispatcher.send(id, reply);
       console.log('[Worker-' + this.id + '] Sent cluster status to client: ' + healthyNodes.length + ' healthy nodes');
+    } else if (message.type === 'REMOVE_NODE') {
+      var nodeId = (message as any).nodeId;
+      this.failureDetector.removeNode(nodeId);
+      console.log('[LoadBalancer] Removed node ' + nodeId + ' from failure detector');
+    } else if (message.type === 'REMOVE_UNHEALTHY_NODE') {
+      var removedId = this.failureDetector.removeMostUnhealthyNode();
+      if (removedId) {
+        console.log('[LoadBalancer] Removed most unhealthy node: ' + removedId);
+      } else {
+        console.log('[LoadBalancer] No unhealthy nodes to remove');
+      }
     } else if (message.type === 'JOB_RESULT') {
       var clientId = this.requestToClient.get(message.requestId);
       var jobContext = this.jobContextMap.get(message.requestId);
@@ -183,6 +204,9 @@ class Worker {
       if (workerId) {
         jobContext.assignedWorker = workerId;
         this.requestToClient.set(message.requestId, clientId);
+        var lamportTime = this.clock.increment();
+        message.lamportTime = lamportTime;
+        message.nodeId = this.clock.getNodeId();
         this.dispatcher.send(workerId, message);
         console.log('[Worker-' + this.id + '] Routed job ' + message.requestId + ' to worker ' + workerId);
       } else {
@@ -211,6 +235,9 @@ class Worker {
       if (workerId) {
         console.log('[Worker-' + this.id + '] Retrying job ' + jobContext.requestId + ' (attempt ' + jobContext.retryCount + '/' + jobContext.maxRetries + ') on worker ' + workerId);
         jobContext.assignedWorker = workerId;
+        var lamportTime = this.clock.increment();
+        (retryMessage as any).lamportTime = lamportTime;
+        (retryMessage as any).nodeId = this.clock.getNodeId();
         this.dispatcher.send(workerId, retryMessage);
 
         var self = this;
@@ -232,11 +259,14 @@ class Worker {
   private sendFailureResultToClient(jobContext: JobContext) {
     var clientId = this.requestToClient.get(jobContext.requestId);
     if (clientId && this.nodeConnections.get(clientId)) {
+      var lamportTime = this.clock.increment();
       var failureResult = {
         type: 'JOB_RESULT' as any,
         senderId: 'load-balancer',
         requestId: jobContext.requestId,
-        payload: { error: 'Job failed after maximum retries', retryCount: jobContext.retryCount }
+        payload: { error: 'Job failed after maximum retries', retryCount: jobContext.retryCount },
+        lamportTime: lamportTime,
+        nodeId: this.clock.getNodeId()
       } as ClusterMessage;
       this.dispatcher.send(clientId, failureResult);
       console.log('[Worker-' + this.id + '] Sent failure result for job ' + jobContext.requestId + ' to client ' + clientId);
@@ -273,20 +303,23 @@ class Worker {
     this.aggregationMap.set(message.requestId, {
       totalChunks: chunks.length,
       receivedChunks: 0,
-      aggregatedData: []
+      chunkResults: new Array(chunks.length)
     });
     this.requestToClient.set(message.requestId, clientId);
 
     for (var index = 0; index < chunks.length; index++) {
       var chunk = chunks[index];
       var worker = healthyNodes[index % healthyNodes.length];
+      var lamportTime = this.clock.increment();
       var subMessage = {
         type: 'SUB_JOB_SUBMIT' as any,
         senderId: message.senderId,
         requestId: message.requestId + '-chunk-' + index,
         payload: chunk,
         retryCount: message.retryCount || 0,
-        maxRetries: message.maxRetries || 3
+        maxRetries: message.maxRetries || 3,
+        lamportTime: lamportTime,
+        nodeId: this.clock.getNodeId()
       } as ClusterMessage;
       this.dispatcher.send(worker.id, subMessage);
       console.log('Dispatched chunk');
@@ -316,6 +349,8 @@ class Worker {
     this.recordWorkerSuccess(workerId);
     
     var baseRequestId = message.requestId.split('-chunk-')[0];
+    var chunkIndexText = message.requestId.split('-chunk-')[1];
+    var chunkIndex = parseInt(chunkIndexText, 10);
     var aggregation = this.aggregationMap.get(baseRequestId);
 
     if (!aggregation) {
@@ -323,8 +358,10 @@ class Worker {
       return;
     }
 
-    for (var i = 0; i < message.payload.length; i++) {
-      aggregation.aggregatedData.push(message.payload[i]);
+    if (!isNaN(chunkIndex)) {
+      aggregation.chunkResults[chunkIndex] = message.payload;
+    } else {
+      aggregation.chunkResults.push(message.payload);
     }
     aggregation.receivedChunks++;
 
@@ -333,13 +370,23 @@ class Worker {
     if (aggregation.receivedChunks === aggregation.totalChunks) {
       var clientId = this.requestToClient.get(baseRequestId);
       if (clientId && this.nodeConnections.get(clientId)) {
-        var finalResult = {
+        var orderedResult = [];
+        for (var i = 0; i < aggregation.chunkResults.length; i++) {
+          var chunkResult = aggregation.chunkResults[i] || [];
+          for (var j = 0; j < chunkResult.length; j++) {
+            orderedResult.push(chunkResult[j]);
+          }
+        }
+        var lamportTime = this.clock.increment();
+        var resultMessage = {
           type: 'JOB_RESULT' as any,
           senderId: 'load-balancer',
           requestId: baseRequestId,
-          payload: aggregation.aggregatedData
+          payload: orderedResult,
+          lamportTime: lamportTime,
+          nodeId: this.clock.getNodeId()
         } as ClusterMessage;
-        this.dispatcher.send(clientId, finalResult);
+        this.dispatcher.send(clientId, resultMessage);
         console.log('[Worker-' + this.id + '] Delivered aggregated result for job ' + baseRequestId + ' to client ' + clientId);
       }
 
@@ -599,17 +646,22 @@ class LoadBalancer {
 
         var queuedJobs = self.dispatcher.getQueueSize();
         var healthyNodes = self.failureDetector.getHealthyNodes().length;
+        var totalWorkerCount = self.workers.length;
+        
+        if (healthyNodes > totalWorkerCount) {
+          healthyNodes = totalWorkerCount;
+        }
 
         var metrics = {
           healthyWorkers: healthyNodes,
-          totalWorkers: self.workerPoolSize,
+          totalWorkers: totalWorkerCount,
           activeJobs: activeJobs,
           queuedJobs: queuedJobs,
           circuitBreakerStates: circuitBreakerStates,
           timestamp: Date.now()
         };
 
-        console.log('[LoadBalancer] Metrics request: active=' + activeJobs + ', queued=' + queuedJobs + ', healthy=' + healthyNodes + '/' + self.workerPoolSize);
+        console.log('[LoadBalancer] Metrics request: active=' + activeJobs + ', queued=' + queuedJobs + ', healthy=' + healthyNodes + '/' + totalWorkerCount);
         res.writeHead(200);
         res.end(JSON.stringify(metrics));
       } else {

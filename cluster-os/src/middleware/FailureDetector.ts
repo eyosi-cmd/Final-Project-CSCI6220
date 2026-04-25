@@ -1,18 +1,21 @@
 import { HeartbeatPayload } from '../common/types';
 
 export class FailureDetector {
-  // node heartbeats
   private heartbeats: Map<string, number> = new Map();
+  private heartbeatLamportTimes: Map<string, number> = new Map();
   private nodeLoads: Map<string, number> = new Map();
   private heartbeatIntervals: Map<string, number[]> = new Map();
   private phiThreshold = 3.0;
   private maxIntervalHistory = 20;
 
-  updateHeartbeat(nodeId: string, payload?: HeartbeatPayload) {
+  updateHeartbeat(nodeId: string, payload?: HeartbeatPayload, lamportTime?: number) {
     var now = Date.now();
     var previousTime = this.heartbeats.get(nodeId);
     
-    this.heartbeats.set(nodeId, now);
+    this.heartbeats.set(nodeId, now);`n    console.log(`[FailureDetector] Heartbeat from ${nodeId.substring(0,8)} | LamportTime: ${lamportTime}`);
+    if (lamportTime !== undefined) {
+      this.heartbeatLamportTimes.set(nodeId, lamportTime);
+    }
     if (payload) {
       this.nodeLoads.set(nodeId, payload.activeJobs);
     }
@@ -81,6 +84,10 @@ export class FailureDetector {
     return healthy;
   }
 
+  getAllNodes(): string[] {
+    return Array.from(this.heartbeats.keys());
+  }
+
   getNodeLoad(nodeId: string): number {
     return this.nodeLoads.get(nodeId) || 0;
   }
@@ -109,6 +116,28 @@ export class FailureDetector {
 
   getNodePhiSuspicion(nodeId: string): number {
     return this.computePhiSuspicion(nodeId);
+  }
+
+  removeNode(nodeId: string): void {
+    this.heartbeats.delete(nodeId);
+    this.nodeLoads.delete(nodeId);
+    this.heartbeatIntervals.delete(nodeId);
+  }
+
+  removeMostUnhealthyNode(): string | null {
+    let mostUnhealthyId: string | null = null;
+    let maxPhi = -1;
+    for (const id of this.heartbeats.keys()) {
+      const phi = this.computePhiSuspicion(id);
+      if (phi > maxPhi) {
+        maxPhi = phi;
+        mostUnhealthyId = id;
+      }
+    }
+    if (mostUnhealthyId) {
+      this.removeNode(mostUnhealthyId);
+    }
+    return mostUnhealthyId;
   }
 
   setPhiThreshold(threshold: number) {

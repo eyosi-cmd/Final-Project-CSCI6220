@@ -207,10 +207,51 @@ function updateMetrics() {
       var activeEl = document.getElementById('metric-active');
       var queuedEl = document.getElementById('metric-queued');
 
-      if (healthyEl) healthyEl.textContent = String(metrics.healthyWorkers || 0);
-      if (totalEl) totalEl.textContent = String(metrics.totalWorkers || 0);
-      if (activeEl) activeEl.textContent = String(metrics.activeJobs || 0);
-      if (queuedEl) queuedEl.textContent = String(metrics.queuedJobs || 0);
+      var healthyVal = metrics.healthyWorkers || 0;
+      var totalVal = metrics.totalWorkers || 0;
+      var activeVal = metrics.activeJobs || 0;
+      var queuedVal = metrics.queuedJobs || 0;
+
+      if (healthyEl) healthyEl.textContent = String(healthyVal);
+      if (totalEl) totalEl.textContent = String(totalVal);
+      if (activeEl) activeEl.textContent = String(activeVal);
+      if (queuedEl) queuedEl.textContent = String(queuedVal);
+
+      var healthyTextEl = document.getElementById('text-healthy-workers');
+      var totalTextEl = document.getElementById('text-total-workers');
+      var activeTextEl = document.getElementById('text-active-jobs');
+      var queuedTextEl = document.getElementById('text-queued-jobs');
+
+      if (healthyTextEl) healthyTextEl.textContent = healthyVal === 1 ? 'worker' : 'workers';
+      if (totalTextEl) totalTextEl.textContent = totalVal === 1 ? 'worker' : 'workers';
+      if (activeTextEl) activeTextEl.textContent = activeVal === 1 ? 'job' : 'jobs';
+      if (queuedTextEl) queuedTextEl.textContent = queuedVal === 1 ? 'job' : 'jobs';
+
+      var healthStatus = document.getElementById('lb-status');
+      if (healthStatus) {
+        if (metrics.healthyWorkers > 0) {
+          healthStatus.textContent = 'Running (' + metrics.healthyWorkers + '/' + metrics.totalWorkers + ' healthy)';
+          healthStatus.classList.add('ready');
+        } else {
+          healthStatus.textContent = 'Waiting for Load Balancer...';
+          healthStatus.classList.remove('ready');
+        }
+      }
+
+      var healthPercent = metrics.totalWorkers > 0 ? 
+        Math.round((metrics.healthyWorkers / metrics.totalWorkers) * 100) : 0;
+      var healthEl = document.getElementById('health-indicator');
+      if (healthEl) {
+        var healthEmoji = healthPercent === 100 ? '🟢' : healthPercent >= 50 ? '🟡' : '🔴';
+        healthEl.textContent = healthEmoji + ' ' + healthPercent + '% health';
+      }
+
+      var loadEl = document.getElementById('load-distribution');
+      if (loadEl) {
+        var avgLoad = metrics.healthyWorkers > 0 ? 
+          Math.round((metrics.activeJobs / metrics.healthyWorkers) * 10) / 10 : 0;
+        loadEl.textContent = '~' + avgLoad + ' jobs/worker (' + metrics.activeJobs + ' total)';
+      }
 
       console.log('[Metrics] Updated:', {
         healthy: metrics.healthyWorkers,

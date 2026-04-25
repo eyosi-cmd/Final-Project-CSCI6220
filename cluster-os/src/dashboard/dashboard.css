@@ -208,3 +208,44 @@ body {
     white-space: pre-wrap;
 }
 
+#lb-status {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 4px;
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+    font-weight: 500;
+}
+
+#lb-status.ready {
+    background: rgba(16, 185, 129, 0.1);
+    color: #10b981;
+}
+
+#health-indicator, #load-distribution {
+    font-weight: 500;
+    color: #333;
+}
+
+.info-panel {
+    background: #fafafa;
+}
+
+.info-panel .panel-header {
+    background: #e8f4f8;
+    border-bottom: 2px solid #b3e5fc;
+}
+
+.info-panel .panel-body {
+    background: #f8fafb;
+}
+
+code {
+    background: #f0f0f0;
+    padding: 3px 6px;
+    border-radius: 3px;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    color: #333;
+}
+
