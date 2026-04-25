@@ -20,7 +20,9 @@
   "description": "",
   "devDependencies": {
     "@types/node": "^25.3.0",
-    "ts-node": "^10.9.2",
+    "ts-node": "^10.9.2"
+  },
+  "dependencies": {
     "typescript": "^5.9.3"
   }
 }
