@@ -82,6 +82,69 @@ function initializeEventListeners() {
   if (removeWorkerBtn) removeWorkerBtn.addEventListener('click', handleRemoveWorker);
   if (submitJobBtn) submitJobBtn.addEventListener('click', handleSubmitJob);
   if (clearOutputBtn) clearOutputBtn.addEventListener('click', clearJobResults);
+
+  initializeTuningControls();
+}
+
+function initializeTuningControls() {
+  var coefficientIds = ['w_u', 'k_t', 'k_q', 'alpha', 'beta', 'gamma', 'recentJobWindow', 'maxJobAge'];
+  
+  coefficientIds.forEach(function(id) {
+    var slider = document.getElementById('tuning-' + id);
+    if (slider) {
+      slider.addEventListener('input', function(e) {
+        handleTuningChange(id, parseFloat(e.target.value));
+      });
+    }
+  });
+
+  var resetBtn = document.getElementById('tuning-reset');
+  if (resetBtn) {
+    resetBtn.addEventListener('click', resetTuningCoefficients);
+  }
+}
+
+function handleTuningChange(key, value) {
+  TuningCoefficients[key] = value;
+  updateTuningDisplay(key, value);
+  console.log('[Tuning] Updated ' + key + ' = ' + value);
+  drawHealthGraph();
+  drawThroughputGraph();
+  drawQueueGraph();
+}
+
+function updateTuningDisplay(key, value) {
+  var displayEl = document.getElementById('tuning-' + key + '-value');
+  if (displayEl) {
+    displayEl.textContent = value;
+  }
+}
+
+function resetTuningCoefficients() {
+  var defaults = {
+    w_u: 1.5,
+    k_t: 25,
+    k_q: 20,
+    alpha: 5,
+    beta: 50,
+    gamma: 20,
+    recentJobWindow: 2000,
+    maxJobAge: 10000
+  };
+
+  Object.keys(defaults).forEach(function(key) {
+    TuningCoefficients[key] = defaults[key];
+    var slider = document.getElementById('tuning-' + key);
+    if (slider) {
+      slider.value = defaults[key];
+    }
+    updateTuningDisplay(key, defaults[key]);
+  });
+
+  console.log('[Tuning] Reset to defaults');
+  drawHealthGraph();
+  drawThroughputGraph();
+  drawQueueGraph();
 }
 
 // ==================== BUTTON HANDLERS ====================

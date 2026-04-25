@@ -417,3 +417,104 @@ code {
     color: #fff;
     box-shadow: 0 0 12px rgba(245, 158, 11, 0.4);
 }
+
+/* Tuning Panel Styles */
+.tuning-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 20px;
+    margin-bottom: 15px;
+}
+
+.tuning-section {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    padding: 12px;
+    border-radius: 4px;
+}
+
+.tuning-section h3 {
+    margin: 0 0 12px 0;
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.tuning-input {
+    margin-bottom: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.tuning-input label {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.tuning-input input[type="range"] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 5px;
+    border-radius: 3px;
+    background: #1a2e4a;
+    outline: none;
+    cursor: pointer;
+}
+
+.tuning-input input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    box-shadow: 0 0 8px var(--accent-glow);
+    transition: all 0.2s;
+}
+
+.tuning-input input[type="range"]::-webkit-slider-thumb:hover {
+    background: #1e90ff;
+    box-shadow: 0 0 12px rgba(30, 144, 255, 0.5);
+    transform: scale(1.2);
+}
+
+.tuning-input input[type="range"]::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    box-shadow: 0 0 8px var(--accent-glow);
+    border: none;
+    transition: all 0.2s;
+}
+
+.tuning-input input[type="range"]::-moz-range-thumb:hover {
+    background: #1e90ff;
+    box-shadow: 0 0 12px rgba(30, 144, 255, 0.5);
+    transform: scale(1.2);
+}
+
+.tuning-value {
+    font-size: 11px;
+    color: var(--accent);
+    font-weight: bold;
+    min-width: 30px;
+    text-align: right;
+}
+
+.btn-secondary {
+    background: #1a2e4a;
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+}
+
+.btn-secondary:hover {
+    background: #254267;
+    border-color: var(--accent);
+    color: var(--text-primary);
+}
