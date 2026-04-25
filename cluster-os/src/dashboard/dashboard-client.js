@@ -11,16 +11,41 @@ var API = {
 };
 
 var TuningCoefficients = {
-  w_u: 1.5,
-  k_t: 25,
-  k_q: 20
+  // Graph response coefficients
+  w_u: 1.5,          // Utilization sensitivity weight
+  k_t: 25,           // Throughput expansion coefficient
+  k_q: 20,           // Queue accumulation factor
+  
+  // Payload intensity calculation weights
+  alpha: 5,          // Payload size multiplier
+  beta: 50,          // Payload sum divisor
+  gamma: 20,         // Payload max divisor
+  
+  // Time window parameters (ms)
+  recentJobWindow: 2000,   // Window for recent jobs in spike calculation
+  maxJobAge: 10000,        // Max age before removing old job submissions
+  metricsUpdateInterval: 500,  // Metrics polling frequency
+  
+  // Spike randomization range
+  minRandomFactor: 0.8,    // Minimum random variation multiplier
+  maxRandomFactor: 1.2,    // Maximum random variation multiplier
+  
+  // Graph scaling parameters
+  maxHistoryPoints: 60,    // Number of data points in history
+  minThroughput: 50,       // Minimum scale for throughput graph
+  minQueue: 30             // Minimum scale for queue graph
 };
 
 function updateTuningCoefficients(newCoefficients) {
   if (typeof newCoefficients === 'object' && newCoefficients !== null) {
-    if (typeof newCoefficients.w_u === 'number') TuningCoefficients.w_u = newCoefficients.w_u;
-    if (typeof newCoefficients.k_t === 'number') TuningCoefficients.k_t = newCoefficients.k_t;
-    if (typeof newCoefficients.k_q === 'number') TuningCoefficients.k_q = newCoefficients.k_q;
+    var validKeys = ['w_u', 'k_t', 'k_q', 'alpha', 'beta', 'gamma', 'recentJobWindow', 
+                      'maxJobAge', 'metricsUpdateInterval', 'minRandomFactor', 'maxRandomFactor',
+                      'maxHistoryPoints', 'minThroughput', 'minQueue'];
+    validKeys.forEach(function(key) {
+      if (key in newCoefficients && typeof newCoefficients[key] === 'number') {
+        TuningCoefficients[key] = newCoefficients[key];
+      }
+    });
     console.log('[Config] Tuning Coefficients Updated:', TuningCoefficients);
   }
 }
@@ -34,13 +59,13 @@ var dashboard = {
   utilizationHistory: [],
   throughputHistory: [],
   queueHistory: [],
-  maxHistoryPoints: 60,
+  maxHistoryPoints: TuningCoefficients.maxHistoryPoints,
   graphAnimationId: null,
   lastJobCount: 0,
   lastUpdateTime: Date.now(),
   jobSubmissions: [],
   processingQueue: [],
-  maxJobAge: 10000
+  maxJobAge: TuningCoefficients.maxJobAge
 };
 
 // init
@@ -190,7 +215,7 @@ function handleSubmitJob() {
     return sum + (typeof val === 'number' ? val : 0);
   }, 0);
   var payloadMax = Math.max.apply(null, parsedData.filter(function(v) { return typeof v === 'number'; }));
-  var intensity = (payloadSize * 5) + (payloadSum / 50) + (payloadMax / 20);
+  var intensity = (payloadSize * TuningCoefficients.alpha) + (payloadSum / TuningCoefficients.beta) + (payloadMax / TuningCoefficients.gamma);
   
   dashboard.jobSubmissions.push({
     id: 'job-' + Date.now(),
@@ -231,11 +256,11 @@ function handleSubmitJob() {
 function calculatePayloadSpike() {
   var now = Date.now();
   var recentJobs = dashboard.jobSubmissions.filter(function(job) {
-    return (now - job.timestamp) < 2000;
+    return (now - job.timestamp) < TuningCoefficients.recentJobWindow;
   });
   
   dashboard.jobSubmissions = dashboard.jobSubmissions.filter(function(job) {
-    return (now - job.timestamp) < dashboard.maxJobAge;
+    return (now - job.timestamp) < TuningCoefficients.maxJobAge;
   });
   
   if (recentJobs.length === 0) return 0;
@@ -244,16 +269,17 @@ function calculatePayloadSpike() {
     return sum + job.intensity;
   }, 0);
   
-  var randomFactor = 0.8 + Math.random() * 0.4;
+  var randomFactor = TuningCoefficients.minRandomFactor + Math.random() * 
+                    (TuningCoefficients.maxRandomFactor - TuningCoefficients.minRandomFactor);
   return Math.min(100, totalIntensity * randomFactor);
 }
 
 function startMetricsUpdate() {
-  console.log('[Metrics] Starting dynamic metrics update every 500ms');
+  console.log('[Metrics] Starting dynamic metrics update every ' + TuningCoefficients.metricsUpdateInterval + 'ms');
   updateMetrics();
   dashboard.metricsUpdateInterval = setInterval(function() {
     updateMetrics();
-  }, 500);
+  }, TuningCoefficients.metricsUpdateInterval);
   startGraphAnimation();
 }
 
@@ -500,7 +526,7 @@ function drawThroughputGraph() {
   
   var pointSpacing = w / (dashboard.maxHistoryPoints - 1 || 1);
   var startX = w - (dashboard.throughputHistory.length - 1) * pointSpacing;
-  var maxThroughput = Math.max(50, Math.max.apply(null, dashboard.throughputHistory)) || 50;
+  var maxThroughput = Math.max(TuningCoefficients.minThroughput, Math.max.apply(null, dashboard.throughputHistory)) || TuningCoefficients.minThroughput;
   
   for (var i = 0; i < dashboard.throughputHistory.length; i++) {
     var x = startX + i * pointSpacing;
@@ -544,7 +570,7 @@ function drawQueueGraph() {
   
   var pointSpacing = w / (dashboard.maxHistoryPoints - 1 || 1);
   var startX = w - (dashboard.queueHistory.length - 1) * pointSpacing;
-  var maxQueue = Math.max(30, Math.max.apply(null, dashboard.queueHistory)) || 30;
+  var maxQueue = Math.max(TuningCoefficients.minQueue, Math.max.apply(null, dashboard.queueHistory)) || TuningCoefficients.minQueue;
   
   for (var i = 0; i < dashboard.queueHistory.length; i++) {
     var x = startX + i * pointSpacing;
