@@ -23,6 +23,10 @@
   "author": "",
   "license": "ISC",
   "description": "",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2"
+  },
   "devDependencies": {
     "@playwright/test": "^1.59.1",
     "@types/node": "^25.3.0",

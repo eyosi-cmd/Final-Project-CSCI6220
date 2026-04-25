@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: cluster-os-backend
+    runtime: node
+    rootDir: .
+    buildCommand: npm install && npx tsc
+    startCommand: npm run start:render
+    plan: free
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: CLIENT_URL
+        # The Vercel frontend URL — allows CORS from the dashboard
+        value: https://cluster-os.vercel.app
