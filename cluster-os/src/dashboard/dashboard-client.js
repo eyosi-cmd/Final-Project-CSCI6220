@@ -11,29 +11,20 @@ var API = {
 };
 
 var TuningCoefficients = {
-  // Graph response coefficients
-  w_u: 1.5,          // Utilization sensitivity weight
-  k_t: 25,           // Throughput expansion coefficient
-  k_q: 20,           // Queue accumulation factor
-  
-  // Payload intensity calculation weights
-  alpha: 5,          // Payload size multiplier
-  beta: 50,          // Payload sum divisor
-  gamma: 20,         // Payload max divisor
-  
-  // Time window parameters (ms)
-  recentJobWindow: 2000,   // Window for recent jobs in spike calculation
-  maxJobAge: 10000,        // Max age before removing old job submissions
-  metricsUpdateInterval: 500,  // Metrics polling frequency
-  
-  // Spike randomization range
-  minRandomFactor: 0.8,    // Minimum random variation multiplier
-  maxRandomFactor: 1.2,    // Maximum random variation multiplier
-  
-  // Graph scaling parameters
-  maxHistoryPoints: 60,    // Number of data points in history
-  minThroughput: 50,       // Minimum scale for throughput graph
-  minQueue: 30             // Minimum scale for queue graph
+  w_u: 1.5,
+  k_t: 25,
+  k_q: 20,
+  alpha: 5,
+  beta: 50,
+  gamma: 20,
+  recentJobWindow: 2000,
+  maxJobAge: 10000,
+  metricsUpdateInterval: 500,
+  minRandomFactor: 0.8,
+  maxRandomFactor: 1.2,
+  maxHistoryPoints: 60,
+  minThroughput: 50,
+  minQueue: 30
 };
 
 function updateTuningCoefficients(newCoefficients) {
