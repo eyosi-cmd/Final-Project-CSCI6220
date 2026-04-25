@@ -388,8 +388,8 @@ function setButtonLoading(button, isLoading) {
     button.disabled = false;
     button.style.opacity = '1';
     var originalTexts = {
-      'start-lb': 'Start LB',
-      'stop-lb': 'Stop LB',
+      'start-lb': 'Start Load Balancer',
+      'stop-lb': 'Stop Load Balancer',
       'add-worker': 'Add Worker',
       'remove-worker': 'Remove Worker',
       'submit-job': 'Dispatch Job'

@@ -363,3 +363,52 @@ code {
     color: var(--accent);
     border: 1px solid var(--border);
 }
+
+/* Circular Icon Buttons */
+.btn-circular {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    min-height: 40px;
+    padding: 0;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    line-height: 1;
+    flex: 0 0 auto !important;
+    margin: 5px;
+}
+
+.btn-circular:hover {
+    transform: scale(1.1);
+}
+
+.button-row .btn-circular {
+    flex: 0 0 40px !important;
+}
+
+#stop-lb.btn-circular {
+    background: #3b0a0a;
+    color: var(--danger);
+    border: 2px solid #7f1d1d;
+}
+
+#stop-lb.btn-circular:hover {
+    background: #991b1b;
+    color: #fff;
+    box-shadow: 0 0 12px rgba(239, 68, 68, 0.4);
+}
+
+#remove-worker.btn-circular {
+    background: #3b1f04;
+    color: var(--warning);
+    border: 2px solid #78350f;
+}
+
+#remove-worker.btn-circular:hover {
+    background: #92400e;
+    color: #fff;
+    box-shadow: 0 0 12px rgba(245, 158, 11, 0.4);
+}
