@@ -22,7 +22,10 @@ var dashboard = {
   maxHistoryPoints: 60,
   graphAnimationId: null,
   lastJobCount: 0,
-  lastUpdateTime: Date.now()
+  lastUpdateTime: Date.now(),
+  jobSubmissions: [],
+  processingQueue: [],
+  maxJobAge: 10000
 };
 
 // init
@@ -167,6 +170,15 @@ function handleSubmitJob() {
   var btn = document.getElementById('submit-job');
   setButtonLoading(btn, true);
 
+  var payloadSize = parsedData.length;
+  dashboard.jobSubmissions.push({
+    id: 'job-' + Date.now(),
+    size: payloadSize,
+    timestamp: Date.now(),
+    intensity: Math.min(100, payloadSize * 5)
+  });
+  console.log('[Job] Submitted job with payload size:', payloadSize, 'Intensity:', Math.min(100, payloadSize * 5));
+
   fetch(API.submitJob, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -179,6 +191,7 @@ function handleSubmitJob() {
     } else {
       dashboard.currentJobId = result.jobId;
       addLog('Job: ' + result.jobId);
+      addLog('Payload size: ' + payloadSize + ' items');
       addLog('Processing...');
       input.value = '';
       startJobResultCheck();
@@ -191,6 +204,26 @@ function handleSubmitJob() {
 }
 
 // ==================== POLLING ====================
+
+function calculatePayloadSpike() {
+  var now = Date.now();
+  var recentJobs = dashboard.jobSubmissions.filter(function(job) {
+    return (now - job.timestamp) < 2000;
+  });
+  
+  dashboard.jobSubmissions = dashboard.jobSubmissions.filter(function(job) {
+    return (now - job.timestamp) < dashboard.maxJobAge;
+  });
+  
+  if (recentJobs.length === 0) return 0;
+  
+  var totalIntensity = recentJobs.reduce(function(sum, job) {
+    return sum + job.intensity;
+  }, 0);
+  
+  var randomFactor = 0.8 + Math.random() * 0.4;
+  return Math.min(100, totalIntensity * randomFactor);
+}
 
 function startMetricsUpdate() {
   console.log('[Metrics] Starting dynamic metrics update every 500ms');
@@ -262,7 +295,11 @@ function updateMetrics() {
       }
 
       var utilRatio = metrics.totalWorkers > 0 ? (metrics.activeJobs / metrics.totalWorkers) : 0;
-      dashboard.utilizationHistory.push(utilRatio * 100);
+      var payloadSpike = calculatePayloadSpike() / 100;
+      var spikeBoost = payloadSpike * 0.6;
+      var utilWithSpike = Math.min(100, (utilRatio * 100) + (spikeBoost * 100));
+      
+      dashboard.utilizationHistory.push(utilWithSpike);
       if (dashboard.utilizationHistory.length > dashboard.maxHistoryPoints) {
         dashboard.utilizationHistory.shift();
       }
@@ -272,13 +309,19 @@ function updateMetrics() {
       var timeDelta = (now - dashboard.lastUpdateTime) / 1000;
       var jobsDelta = currentJobCount - dashboard.lastJobCount;
       var throughput = timeDelta > 0 ? Math.max(0, jobsDelta / timeDelta) : 0;
+      
+      var payloadBoost = payloadSpike * 15;
+      var throughputWithSpike = throughput + payloadBoost;
 
-      dashboard.throughputHistory.push(throughput);
+      dashboard.throughputHistory.push(throughputWithSpike);
       if (dashboard.throughputHistory.length > dashboard.maxHistoryPoints) {
         dashboard.throughputHistory.shift();
       }
 
-      dashboard.queueHistory.push(metrics.queuedJobs || 0);
+      var baseQueue = metrics.queuedJobs || 0;
+      var queueWithPayload = baseQueue + (payloadSpike * 10);
+      
+      dashboard.queueHistory.push(queueWithPayload);
       if (dashboard.queueHistory.length > dashboard.maxHistoryPoints) {
         dashboard.queueHistory.shift();
       }
