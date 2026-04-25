@@ -84,6 +84,37 @@ function initializeEventListeners() {
   if (clearOutputBtn) clearOutputBtn.addEventListener('click', clearJobResults);
 
   initializeTuningControls();
+  initializeTuningPanel();
+}
+
+function initializeTuningPanel() {
+  var toggleBtn = document.getElementById('tuning-panel-toggle');
+  var closeBtn = document.getElementById('tuning-panel-close');
+  var sidePanel = document.getElementById('tuning-side-panel');
+
+  if (toggleBtn) {
+    toggleBtn.addEventListener('click', function() {
+      if (sidePanel) {
+        sidePanel.classList.toggle('open');
+      }
+    });
+  }
+
+  if (closeBtn) {
+    closeBtn.addEventListener('click', function() {
+      if (sidePanel) {
+        sidePanel.classList.remove('open');
+      }
+    });
+  }
+
+  if (sidePanel) {
+    sidePanel.addEventListener('click', function(e) {
+      if (e.target === sidePanel) {
+        sidePanel.classList.remove('open');
+      }
+    });
+  }
 }
 
 function initializeTuningControls() {
