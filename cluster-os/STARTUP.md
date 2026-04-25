@@ -1,103 +1,60 @@
-# Startup Guide - ClusterOS
+# Quick Start Guide
 
-## Quick Start (Recommended)
+For complete instructions, see README.md. This file shows the fastest ways to get started.
 
-Start everything at once with:
+## Start Everything (Recommended)
 
 ```bash
 npm start
 ```
 
-This will launch:
-- 🔵 **DNS Router** (port 3000) - Service discovery
-- 🟢 **Load Balancer** (port 3010, metrics 9001) - Distributed request routing  
-- 🟡 **Worker Node** (port 2000+) - Task execution
-- 🟣 **Dashboard** (port 5000) - Web UI for monitoring
+This starts DNS Router, Load Balancer, Worker Node, and Dashboard all at once.
 
-All services run in parallel with color-coded output for easy monitoring.
+Open http://localhost:5000
 
----
+## Start with More Workers
 
-## Startup Options
-
-### Option 1: Everything (Default)
-```bash
-npm start
-```
-Starts 1 DNS, 1 Load Balancer, 1 Worker, and the Dashboard.
-
-**Use for:** Quick testing, demos, development
-
----
-
-### Option 2: Core Services Only (No Workers)
-```bash
-npm run start:core
-```
-Starts DNS Router, Load Balancer, and Dashboard (without workers).
-
-**Use for:** Testing the dashboard without job processing
-- Dashboard available at `http://localhost:5000`
-- Add workers later with "Add Worker" button in dashboard
-
----
-
-### Option 3: Full Cluster (3 Workers)
 ```bash
 npm run start:cluster
 ```
-Starts DNS Router, Load Balancer, 3 Worker Nodes, and Dashboard.
 
-**Use for:** Full cluster testing with distributed processing
-- 3 workers for parallel job processing
-- Observe load balancing across workers
-- Test circuit breaker patterns with multiple workers
+This starts with 3 workers instead of 1. Useful for testing load balancing and failure scenarios.
 
----
+Open http://localhost:5000
 
-### Option 4: Individual Services
-Start services individually:
+## Start Services Individually
+
+If you need to debug specific services:
 
 ```bash
-# Terminal 1: DNS Router
-npm run start:dns
-
-# Terminal 2: Load Balancer
-npm run start:lb
-
-# Terminal 3: Worker Nodes (run multiple times in different terminals)
-npm run start:worker
-
-# Terminal 4: Dashboard
-npm run start:dashboard
+Terminal 1: npm run start:dns
+Terminal 2: npm run start:lb
+Terminal 3: npm run start:worker
+Terminal 4: npm run start:dashboard
 ```
 
-**Use for:** Debugging specific services or custom configurations
+Start them in this order. DNS Router must be first.
 
----
+## Service Ports
 
-## Service Details
+- DNS Router: 2000 (internal service discovery)
+- Load Balancer: 3010 (main service)
+- Metrics: 9001 (internal metrics endpoint)
+- Dashboard: 5000 (web interface)
 
-### DNS Router (port 3000)
-- Service registry for Load Balancer
-- Maintains list of active services
-- Auto-restarts service discovery on connection failure
+## Stop Services
 
-### Load Balancer (port 3010)
-- Receives jobs from clients
-- Routes requests to healthy workers
-- Provides metrics endpoint (port 9001): `http://localhost:9001/metrics`
-- Implements circuit breaker pattern for fault tolerance
+Press Ctrl+C in the terminal.
 
-### Worker Nodes
-- Process job requests
-- Send heartbeats to Load Balancer
-- Report job results back
-- Each worker gets a unique ID (auto-generated)
+## Next Steps
 
-### Dashboard (port 5000)
-- Web UI: `http://localhost:5000`
-- Monitor real-time cluster metrics
+1. Open http://localhost:5000
+2. Click "Start Load Balancer"
+3. Click "Add Worker" to add workers
+4. Submit a job: `[1,2,3,4,5]`
+5. View results and real-time metrics
+
+See README.md for detailed information about what each metric means and how to use the dashboard.
 - View circuit breaker states
 - Submit test jobs
 - Control load balancer and workers

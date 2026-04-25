@@ -1,103 +1,101 @@
-# ClusterOS Dashboard - UI Testing Guide
+# Testing Guide
 
-## ⚠️ Important: Service Startup Instructions
+## Run All Tests
 
-Due to service stability issues, **you must manually start the cluster services BEFORE running tests**. Do NOT rely on Playwright's automatic service startup.
-
-### Step-by-Step Startup
-
-#### Terminal 1 - DNS Router
-```bash
-npm run start:dns
-```
-Wait for: `[DNS Router] Server listening on port 2000`
-
-#### Terminal 2 - Load Balancer
-```bash
-npm run start:lb
-```
-Wait for: `[LB] Server listening on port 3010` and `[LB] Metrics server listening on port 9001`
-
-#### Terminal 3 - Dashboard
-```bash
-npm run start:dashboard
-```
-Wait for: `[DASHBOARD] Successfully connected to Load Balancer on port 3010`
-
-#### Terminal 4 - Run Tests (after all 3 services are ready)
-```bash
-SKIP_WEB_SERVER=1 npm test
-```
-
-Or use the interactive UI mode:
-```bash
-SKIP_WEB_SERVER=1 npm run test:ui
-```
-
----
-
-## Overview
-This project includes automated UI tests using Playwright, a modern testing framework that supports multiple browsers and devices.
-
-## Setup
-
-### Prerequisites
-- Node.js 16+
-- ClusterOS project dependencies installed
-- LoadBalancer and Dashboard services available
-
-### Installation
-The following have been automatically installed:
-- `@playwright/test` - Testing framework
-- Configuration files created:
-  - `playwright.config.ts` - Playwright configuration
-  - `tests/pages/dashboard.page.ts` - Page Object Model
-  - `tests/dashboard.spec.ts` - Test specifications
-
-## Running Tests
-
-### Run All Tests
 ```bash
 npm test
 ```
 
-### Run Tests in UI Mode (Recommended for Development)
+## Run Tests with Visual Interface
+
+For a better testing experience with visualization:
+
 ```bash
 npm run test:ui
 ```
-This opens an interactive mode where you can:
-- See tests running in real-time
-- Pause/resume execution
-- Inspect elements
+
+This opens an interactive UI where you can:
+- Watch tests run in real-time
+- Pause and resume execution
+- Inspect elements on the page
 - View detailed logs
 
-### Run Tests in Headed Mode (Browser Visible)
+## Run Tests with Browser Visible
+
+To see the browser while tests run:
+
 ```bash
 npm run test:headed
 ```
-Tests run with browser windows visible for observation.
 
-### Run Tests in Debug Mode
+## Debug Tests
+
+To step through tests with debugging tools:
+
 ```bash
 npm run test:debug
 ```
-Launches with Playwright Inspector for step-by-step debugging.
 
-### View Test Report
-After tests run, view detailed HTML report:
+## View Test Results
+
+After tests run, view the HTML report:
+
 ```bash
 npm run test:report
 ```
 
-## Test Structure
+## Important: Start Services First
 
-### Page Object Model (POM)
-- **Location**: `tests/pages/dashboard.page.ts`
-- **Purpose**: Encapsulates all dashboard interactions
-- **Benefits**: 
-  - Centralized element selectors
-  - Reusable methods
-  - Easy maintenance when UI changes
+Before running any tests, start the required services in separate terminals:
+
+Terminal 1:
+```bash
+npm run start:dns
+```
+
+Terminal 2:
+```bash
+npm run start:lb
+```
+
+Terminal 3:
+```bash
+npm run start:dashboard
+```
+
+Terminal 4 (after all above are running):
+```bash
+npm test
+```
+
+Or for UI mode:
+```bash
+npm run test:ui
+```
+
+## What Gets Tested
+
+Tests verify that the dashboard:
+- Loads correctly
+- Connects to the Load Balancer
+- Displays metrics properly
+- Accepts job submissions
+- Shows results accurately
+- Updates in real-time
+
+## Test Files
+
+- `tests/dashboard.spec.ts` - Main test specifications
+- `tests/pages/dashboard.page.ts` - Helper functions for dashboard interaction
+
+## Troubleshooting
+
+If tests fail:
+1. Check that all services are running
+2. Wait a few seconds for services to initialize
+3. Check that Load Balancer is on port 3010
+4. Check that Dashboard is on port 5000
+5. Look at error messages in the test output
 
 ### Test Specifications
 - **Location**: `tests/dashboard.spec.ts`

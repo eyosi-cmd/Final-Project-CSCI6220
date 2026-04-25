@@ -1,203 +1,253 @@
-# ClusterOS
+# ClusterOS - Distributed Systems Simulation
 
-ClusterOS is a distributed systems simulation based on concepts from "Distributed Systems: Concepts and Design" where a load balancer acts as the kernel and coordinates a set of worker nodes over TCP sockets. The system demonstrates key distributed systems concepts like failure detection, load balancing, circuit breaker patterns, and job aggregation.
+ClusterOS is a distributed systems project that simulates a cluster of computers working together. It demonstrates how load balancers distribute work across multiple machines, how systems detect failures, and how they recover from problems automatically.
 
-## Tech Stack
+## What's Inside
 
-- **Language**: TypeScript
-- **Runtime**: Node.js
-- **Communication**: Raw TCP sockets with newline-delimited JSON
-- **No external dependencies** (just TypeScript and ts-node for development)
-
-## Features
-
-- Load balancer with priority queuing and worker routing
-- Phi-suspicion failure detection (adaptive heartbeat monitoring)
-- Circuit breaker pattern for handling worker failures
-- Priority-based job queuing (HIGH, NORMAL, LOW)
-- Browser dashboard for managing components and submitting jobs
-- Metrics HTTP endpoint for cluster status
-- Client affinity for sticky session scheduling
-- Job aggregation for parallel processing of array data
+ClusterOS includes:
+- Load Balancer: Routes jobs to available worker machines
+- Worker Nodes: Process jobs and return results
+- DNS Router: Manages service discovery
+- Dashboard: A web interface to monitor and control everything
+- Real-time Metrics: Monitor cluster health and performance
 
 ## Prerequisites
 
-- **Node.js** (v16 or higher)
-- **npm** (comes with Node.js)
-- **PowerShell** (on Windows) or terminal on Mac/Linux
+You need:
+- Node.js version 16 or higher
+- npm (comes with Node.js)
 
-## Setup
+To check if you have them:
+```bash
+node --version
+npm --version
+```
 
-```powershell
-cd cluster-os
+## Installation
+
+1. Open your terminal or PowerShell
+2. Navigate to the cluster-os directory
+3. Install dependencies:
+```bash
 npm install
 ```
 
-This installs TypeScript development tools and type definitions.
+This installs all required packages for running the system.
 
-## How to Run
+## Quick Start - Run Everything
 
-### Recommended: Dashboard (Easiest)
+The easiest way to run the entire system is:
 
-The dashboard is the simplest way to run the full system. It handles component startup automatically.
-
-```powershell
-npm run start:dashboard
+```bash
+npm start
 ```
 
-Then open your browser:
+This command starts:
+- DNS Router (service discovery)
+- Load Balancer (main kernel)
+- One Worker Node (processes jobs)
+- Dashboard (web interface)
 
-```text
+All services start in parallel and output colored messages so you can track what's happening.
+
+## Access the Dashboard
+
+After running `npm start`, open your browser and go to:
+
+```
 http://localhost:5000
 ```
 
-**Steps to test:**
+You should see the ClusterOS Dashboard with:
+- System Controls (Start/Stop Load Balancer, Add/Remove Workers)
+- Cluster Metrics (Healthy workers, active jobs, queued jobs)
+- System Health (Real-time graphs showing utilization, throughput, queue depth)
+- Circuit Breaker States (Health status of each worker)
+- Job Submission (Submit jobs and view results)
+- Dynamic Tuning (Adjust system parameters)
 
-1. Click **Start Load Balancer** button
-2. Click **Add Worker** (do this 2-3 times to add multiple workers)
-3. Type a JSON array in the job input box, like `[1,2,3,4,5]`
-4. Click **Submit Job**
-5. View the result in the output panel below
-6. Click **Stop Load Balancer** when done
+## How to Use the Dashboard
 
-The dashboard also shows:
-- **Healthy Workers**: Number of responsive workers / total workers
-- **Active Jobs**: Count of jobs currently being processed (increments on submit, decrements as jobs complete)
-- **Queued Jobs**: Count of jobs waiting for dispatch when system is at capacity
-- **System Health**: Status indicator, health percentage, and load distribution
-- **Circuit Breaker States**: Per-worker state visualization (CLOSED=healthy, OPEN=failing, HALF_OPEN=recovering)
-- **Real-time Metrics**: All metrics update every 2 seconds
+1. Start the system with `npm start`
+2. Open http://localhost:5000
+3. Click "Start Load Balancer" to begin
+4. Click "Add Worker" 2-3 times to add multiple workers
+5. Submit a job by entering a JSON array like `[1,2,3,4,5]` in the Job Payload field
+6. Click "Dispatch Job" to send it
+7. View the result in the Results section below
+8. Watch the real-time graphs update as jobs are processed
+9. Use the hamburger menu (three lines) to open Dynamic Tuning and adjust coefficients
 
-### Alternative: CLI Mode (Manual)
+The dashboard updates automatically every 500 milliseconds, so you can see system behavior in real-time.
 
-If you want to run components in separate terminals:
+## What Each Metric Means
 
-**Terminal 1** — Start DNS Router:
-```powershell
+- **Healthy Workers**: Number of workers responding correctly / total workers
+- **Total Workers**: Total number of worker machines in the cluster
+- **Active Jobs**: Number of jobs currently being processed
+- **Queued Jobs**: Number of jobs waiting to be assigned
+- **Cluster Utilization**: Percentage showing how much the cluster is being used (0-100%)
+- **Request Throughput**: Jobs being processed per second
+- **Queue Depth**: Count of pending jobs
+
+## Stop the System
+
+Press Ctrl+C in the terminal to stop all services.
+
+## Alternative Startup Options
+
+If you want more control, you can start services individually:
+
+**Start DNS Router Only:**
+```bash
 npm run start:dns
 ```
 
-**Terminal 2** — Start Load Balancer:
-```powershell
+**Start Load Balancer Only:**
+```bash
 npm run start:lb
 ```
 
-**Terminal 3 & 4** — Start two Worker Nodes (in separate terminals):
-```powershell
+**Start Worker Nodes:**
+```bash
 npm run start:worker
-npm run start:worker
 ```
 
-**Terminal 5** — Start Client CLI:
-```powershell
-npm run start:client
+**Start Dashboard Only:**
+```bash
+npm run start:dashboard
 ```
 
-Then in the client, you can run commands:
-```
-ClusterOS > submit [1,2,3]
-ClusterOS > status
-ClusterOS > exit
+**Start with 3 Workers:**
+```bash
+npm run start:cluster
 ```
 
-**Important:** Start the DNS router first, then the load balancer, then workers. The order matters.
+Note: Services must be started in order (DNS Router, then Load Balancer, then Workers/Dashboard).
 
-## System Architecture
+## Project Structure
 
 ```
-User Input
-    ↓
-┌─────────────────────┐
-│  DNS Router         │ (Port 2000/3000)
-│  (Client routing)   │
-└─────────────────────┘
-    ↓
-┌─────────────────────┐
-│  Load Balancer      │ (Port 3010)
-│  (Kernel)           │
-│  - Dispatcher       │
-│  - Scheduler        │
-│  - Circuit Breaker  │
-│  - Failure Detector │
-└─────────────────────┘
-    ↓
-┌─────────────────────┐
-│  Worker Nodes       │
-│  (Process jobs)     │
-└─────────────────────┘
+cluster-os/
+├── src/
+│   ├── kernel/           LoadBalancer, Scheduler, Lamport Clock
+│   ├── worker/           Worker Node implementation
+│   ├── network/          DNS Router implementation
+│   ├── dashboard/        Web UI and backend server
+│   └── middleware/       Failure detection
+├── tests/                Automated tests
+├── package.json          Project dependencies
+└── README.md            This file
 ```
 
-## Key Distributed Systems Concepts
+## Key Concepts Demonstrated
 
-ClusterOS demonstrates several core distributed systems patterns and concepts:
+### Load Balancer as Kernel
+The load balancer acts as the central "kernel" of the cluster. All jobs go through it, and it decides which worker gets each job. This abstraction makes the cluster look like a single machine to clients.
 
-### Load Balancer as Kernel (Single System Image)
-The load balancer acts as a centralized kernel that abstracts away worker node complexity from clients. Clients submit jobs to a single entry point without knowing about individual workers.
-
-### Phi-Suspicion Failure Detection
-An adaptive failure detection mechanism that analyzes heartbeat intervals rather than just checking presence/absence. Heartbeats arriving at irregular intervals indicate potential failure before a timeout occurs.
+### Failure Detection
+The system continuously monitors worker health through heartbeat messages. If a worker stops responding, the system automatically stops sending it jobs. When the worker recovers, the system puts it back to work.
 
 ### Circuit Breaker Pattern
-Prevents cascading failures by managing per-worker state through three states:
-- **CLOSED**: Worker is healthy; all requests allowed
-- **OPEN**: Worker has failed; requests blocked temporarily
-- **HALF_OPEN**: Testing if worker recovered; limited requests allowed
+Each worker has a state:
+- CLOSED: Healthy, accepting jobs
+- OPEN: Failed, rejecting jobs
+- HALF_OPEN: Testing recovery with limited jobs
 
-### Job Aggregation (Map-Reduce)
-Divides incoming jobs across multiple workers and aggregates results:
-- **Divide**: Large job split into smaller tasks
-- **Conquer**: Each worker processes its tasks in parallel
-- **Aggregate**: Results collected and returned to client
+### Job Aggregation
+Large jobs are divided into smaller tasks that workers process in parallel. Results are collected and returned in the correct order.
 
-### Priority-Based Queuing
-Jobs can be submitted with different priorities (HIGH, NORMAL, LOW). The scheduler respects priority order when dispatching jobs.
+### Lamport Clock
+Every message in the system gets a logical timestamp. This ensures all events can be ordered correctly, even without synchronized clocks. This is essential for debugging and ensuring correct ordering in distributed processing.
 
-### Client Affinity / Sticky Sessions
-The scheduler can maintain affinity for repeated requests from the same client to improve cache locality.
+## Testing
 
-### Distributed Logical Ordering (Lamport Clock)
-Every message in the system is tagged with a logical timestamp called a Lamport Clock. This provides a total ordering of all events across the distributed system independent of wall-clock synchronization.
+To run automated tests:
 
-**How it works:**
-- Each component (LoadBalancer, Workers, DNS Router) maintains its own logical clock
-- Before sending a message: increment the clock
-- Upon receiving a message: update clock to max(local, received) + 1
-- Result: `lamportTime` field in every message establishes causal ordering
-
-**Benefits:**
-- Deterministic event ordering across the network
-- Proper ordering of sub-job results (MapReduce chunks arrive in correct order)
-- Idempotent message handling (detect duplicate retries)
-- Consistent distributed tracing and debugging
-- Causality tracking independent of network latency
-
-**Implementation:**
-- `src/kernel/lamportClock.ts` — Core Lamport Clock class
-- LoadBalancer: Increments before sending jobs, updates on receiving heartbeats/results
-- Workers: Increment before sending results, update on receiving jobs
-- FailureDetector: Tracks logical timestamps from heartbeats
-
-**Example:**
-```
-Sequence of events (logical time order):
-[LoadBalancer:1] Sends JOB_SUBMIT (lamportTime=1)
-[Worker:1]       Receives JOB_SUBMIT, updates clock to max(0,1)+1 = 2
-[Worker:2]       Sends JOB_RESULT (lamportTime=3)
-[LoadBalancer:2] Receives JOB_RESULT, updates clock to max(1,3)+1 = 4
-
-Result: Total causal order: LB:1 → W:2 → W:3 → LB:4
+```bash
+npm test
 ```
 
-## Key Components
+To run tests in UI mode with visualization:
 
-| Component | File | Responsibility |
-|-----------|------|-----------------|
-| **Load Balancer** | `src/kernel/LoadBalancer.ts` | Main kernel; routes jobs to workers, detects failures, manages retries |
-| **DNS Router** | `src/network/DNSRouter.ts` | Entry point for clients; routes to available load balancers |
-| **Worker Node** | `src/worker/WorkerNode.ts` | Processes jobs; sends heartbeats; handles parallel workloads |
-| **Scheduler** | `src/kernel/Scheduler.ts` | Selects which worker gets the job (considers load and affinity) |
-| **Failure Detector** | `src/middleware/FailureDetector.ts` | Monitors worker health via heartbeat analysis |
-| **Lamport Clock** | `src/kernel/lamportClock.ts` | Provides logical event ordering independent of wall-clock time |
+```bash
+npm run test:ui
+```
+
+To view test results:
+
+```bash
+npm run test:report
+```
+
+Note: Before running tests, start the services in separate terminals:
+- Terminal 1: `npm run start:dns`
+- Terminal 2: `npm run start:lb`
+- Terminal 3: `npm run start:dashboard`
+- Terminal 4: `SKIP_WEB_SERVER=1 npm test`
+
+## Understanding the Architecture
+
+```
+Browser Client
+    |
+    v
+DNS Router (Port 2000/3000)
+    |
+    v
+Load Balancer (Port 3010)
+    |
+    +----> Worker Node 1
+    |
+    +----> Worker Node 2
+    |
+    +----> Worker Node 3
+    |
+    v
+Metrics Server (Port 9001)
+```
+
+When you submit a job through the dashboard:
+1. The job goes to the Load Balancer
+2. The Load Balancer picks the best available Worker
+3. The Worker processes the job
+4. Results return to the Load Balancer
+5. Results are delivered back to the Dashboard
+6. The Dashboard displays the results
+
+## Common Issues
+
+**Dashboard won't connect:**
+- Make sure Load Balancer is running
+- Check that it's on port 3010
+- Wait a few seconds and refresh the browser
+
+**Workers won't add:**
+- Load Balancer must be running first
+- Check that DNS Router started successfully
+
+**Jobs don't process:**
+- At least one worker must be added
+- Load Balancer must be running
+- Check for error messages in the terminal
+
+## Development
+
+To modify the system:
+1. Edit TypeScript files in `src/`
+2. The system auto-reloads using ts-node
+3. Changes take effect on the next request
+4. Check terminal output for errors
+
+## Further Learning
+
+This project demonstrates concepts from:
+- Distributed Systems textbooks
+- Microservices architecture
+- Fault tolerance patterns
+- Real-time monitoring systems
+
+Study the source code to see how each concept is implemented. Start with `src/kernel/LoadBalancer.ts` to understand the core logic.
 | **Dashboard** | `src/dashboard/Dashboard.ts` | Web UI for managing the cluster |
 | **Client** | `src/client/UserClient.ts` | CLI for submitting jobs and checking status |
 
