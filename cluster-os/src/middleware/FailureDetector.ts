@@ -12,7 +12,7 @@ export class FailureDetector {
     var now = Date.now();
     var previousTime = this.heartbeats.get(nodeId);
     
-    this.heartbeats.set(nodeId, now);`n    console.log(`[FailureDetector] Heartbeat from ${nodeId.substring(0,8)} | LamportTime: ${lamportTime}`);
+    this.heartbeats.set(nodeId, now);    console.log(`[FailureDetector] Heartbeat from ${nodeId.substring(0,8)} | LamportTime: ${lamportTime}`);
     if (lamportTime !== undefined) {
       this.heartbeatLamportTimes.set(nodeId, lamportTime);
     }

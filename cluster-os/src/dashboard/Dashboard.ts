@@ -333,6 +333,23 @@ var server = http.createServer(function(req, res) {
     var css = fs.readFileSync(cssPath, 'utf-8');
     res.writeHead(200, { 'Content-Type': 'text/css' });
     res.end(css);
+  } else if (pathname.startsWith('/assets/')) {
+    var fileName = pathname.substring(8);
+    var assetPath = path.join(__dirname, 'assets', fileName);
+    if (!fs.existsSync(assetPath)) {
+      res.writeHead(404);
+      res.end('Not Found');
+      return;
+    }
+    var ext = path.extname(fileName).toLowerCase();
+    var contentType = 'application/octet-stream';
+    if (ext === '.svg') contentType = 'image/svg+xml';
+    else if (ext === '.png') contentType = 'image/png';
+    else if (ext === '.jpg' || ext === '.jpeg') contentType = 'image/jpeg';
+    else if (ext === '.gif') contentType = 'image/gif';
+    var asset = fs.readFileSync(assetPath);
+    res.writeHead(200, { 'Content-Type': contentType });
+    res.end(asset);
   } else if (pathname === '/') {
     var dashboardPath = path.join(__dirname, 'dashboard.html');
     var html = fs.readFileSync(dashboardPath, 'utf-8');
