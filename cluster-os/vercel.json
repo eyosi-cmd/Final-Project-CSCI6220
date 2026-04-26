@@ -1,33 +1,9 @@
 {
   "version": 2,
-  "builds": [
-    {
-      "src": "dist/render/server.js",
-      "use": "@vercel/node"
-    },
-    {
-      "src": "dist/index.html",
-      "use": "@vercel/static"
-    },
-    {
-      "src": "dist/dashboard.css",
-      "use": "@vercel/static"
-    },
-    {
-      "src": "dist/dashboard-client.js",
-      "use": "@vercel/static"
-    },
-    {
-      "src": "dist/dashboard-api.js",
-      "use": "@vercel/static"
-    }
-  ],
-  "routes": [
-    { "src": "/health", "dest": "dist/render/server.js" },
-    { "src": "/api/(.*)", "dest": "dist/render/server.js" },
-    { "src": "/dashboard.css", "dest": "dist/dashboard.css" },
-    { "src": "/dashboard-client.js", "dest": "dist/dashboard-client.js" },
-    { "src": "/dashboard-api.js", "dest": "dist/dashboard-api.js" },
-    { "src": "/(.*)", "dest": "dist/index.html" }
+  "outputDirectory": "public",
+  "rewrites": [
+    { "source": "/health",         "destination": "/api/backend" },
+    { "source": "/api/:path*",     "destination": "/api/backend" },
+    { "source": "/(.*)",           "destination": "/index.html" }
   ]
 }
