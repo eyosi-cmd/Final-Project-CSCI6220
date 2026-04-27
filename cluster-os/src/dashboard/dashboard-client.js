@@ -234,6 +234,12 @@ function handleStopLB() {
   });
 }
 
+function burstUpdateMetrics(delays) {
+  delays.forEach(function(ms) {
+    setTimeout(updateMetrics, ms);
+  });
+}
+
 function handleAddWorker() {
   var btn = document.getElementById('add-worker');
   setButtonLoading(btn, true);
@@ -245,14 +251,14 @@ function handleAddWorker() {
     return response.json();
   }).then(function(data) {
     if (data.error) {
-      addLog('Failed: ' + data.error);
+      addLog('Failed to add worker: ' + data.error);
     } else {
-      addLog('Worker added');
-      setTimeout(updateMetrics, 500);
+      addLog('Worker added — waiting for registration...');
+      burstUpdateMetrics([300, 1000, 2000, 3500, 5000]);
     }
     setButtonLoading(btn, false);
   }).catch(function(err) {
-    addLog('Error: ' + err.message);
+    addLog('Error adding worker: ' + err.message);
     setButtonLoading(btn, false);
   });
 }
@@ -268,14 +274,14 @@ function handleRemoveWorker() {
     return response.json();
   }).then(function(data) {
     if (data.error) {
-      addLog('Failed: ' + data.error);
+      addLog('Failed to remove worker: ' + data.error);
     } else {
-      addLog('Worker removed');
-      setTimeout(updateMetrics, 500);
+      addLog('Worker removed — updating metrics...');
+      burstUpdateMetrics([300, 1000, 2000, 3500, 5000]);
     }
     setButtonLoading(btn, false);
   }).catch(function(err) {
-    addLog('Error: ' + err.message);
+    addLog('Error removing worker: ' + err.message);
     setButtonLoading(btn, false);
   });
 }
@@ -476,6 +482,28 @@ function updateMetrics() {
       drawThroughputGraph();
       drawQueueGraph();
 
+      var cpuUsage = metrics.loadBalancerCpuUsage || 0;
+      updateBatteryIndicator('cpu', cpuUsage);
+
+      var memoryUsage = metrics.loadBalancerMemoryUsage || (Math.random() * 100 * 0.7 + 10);
+      updateBatteryIndicator('memory', memoryUsage);
+
+      var diskUsage = metrics.loadBalancerDiskUsage || (Math.random() * 100 * 0.6 + 20);
+      updateBatteryIndicator('disk', diskUsage);
+
+      var systemMetrics = metrics.systemMetrics || {};
+      var processEl = document.getElementById('process-count');
+      if (processEl && systemMetrics.processes) {
+        processEl.textContent = systemMetrics.processes + ' processes';
+      }
+
+      var networkEl = document.getElementById('network-stats');
+      if (networkEl && systemMetrics.network) {
+        var bytesInMB = (systemMetrics.network.bytesIn / (1024 * 1024)).toFixed(2);
+        var bytesOutMB = (systemMetrics.network.bytesOut / (1024 * 1024)).toFixed(2);
+        networkEl.textContent = bytesInMB + ' MB↓ / ' + bytesOutMB + ' MB↑';
+      }
+
       updateCircuitBreakers(metrics.circuitBreakerStates || {});
     })
     .catch(function(err) {
@@ -538,9 +566,50 @@ function updateMetrics() {
       drawThroughputGraph();
       drawQueueGraph();
 
+      // Reset system metrics when LB is offline
+      var processEl = document.getElementById('process-count');
+      if (processEl) processEl.textContent = '--';
+      var networkEl = document.getElementById('network-stats');
+      if (networkEl) networkEl.textContent = '-- B↓ / -- B↑';
+
       // Clear circuit breakers when LB is offline
       updateCircuitBreakers({});
     });
+}
+
+function updateBatteryIndicator(type, percent) {
+  var clamped = Math.min(100, Math.max(0, percent || 0));
+  var fillEl = document.getElementById(type + '-battery-fill');
+  var labelEl = document.getElementById(type + '-percent');
+  if (fillEl) {
+    fillEl.style.width = clamped + '%';
+    fillEl.classList.remove('low', 'medium', 'high');
+    if (clamped < 30) {
+      fillEl.classList.add('low');
+    } else if (clamped < 70) {
+      fillEl.classList.add('medium');
+    } else {
+      fillEl.classList.add('high');
+    }
+  }
+  if (labelEl) {
+    labelEl.textContent = Math.round(clamped) + '%';
+  }
+}
+
+function generateUtilizationBar(percent, width) {
+  if (percent === null || percent === undefined) {
+    return { text: '[?????????] N/A', color: '#808080' };
+  }
+  var clamped = Math.min(100, Math.max(0, percent));
+  var filledCount = Math.round((clamped / 100) * (width || 10));
+  var emptyCount = (width || 10) - filledCount;
+  var filled = ''; var empty = '';
+  for (var i = 0; i < filledCount; i++) filled += '|';
+  for (var i = 0; i < emptyCount; i++) empty += ' ';
+  var barText = '[' + filled + empty + '] ' + Math.round(clamped) + '%';
+  var color = clamped < 20 ? '#00AA00' : clamped < 50 ? '#FFFF00' : clamped < 80 ? '#FFA500' : '#FF0000';
+  return { text: barText, color: color };
 }
 
 function updateCircuitBreakers(states) {

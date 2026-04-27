@@ -4,9 +4,10 @@ export class DashboardPage {
   constructor(private page: Page) {}
 
   async goto() {
-    await this.page.goto('http://localhost:5000');
-    // Wait for dashboard to be fully loaded
-    await this.page.waitForSelector('text=ClusterOS Dashboard', { timeout: 10000 });
+    await this.page.goto('/');
+    await expect(this.page).toHaveTitle('ClusterOS Dashboard');
+    await this.page.waitForSelector('#start-lb', { timeout: 10000 });
+    await this.page.waitForSelector('#metric-healthy', { timeout: 10000 });
   }
 
   async getHealthyWorkersCount(): Promise<number> {
@@ -30,10 +31,21 @@ export class DashboardPage {
   }
 
   async waitForMetricsUpdate(timeout: number = 5000) {
-    // Wait for metrics to be displayed
     await this.page.waitForSelector('#metric-healthy', { timeout });
     await this.page.waitForSelector('#metric-active', { timeout });
     await this.page.waitForSelector('#metric-queued', { timeout });
+    await this.page.waitForFunction(
+      () => {
+        const loadDistribution = document.getElementById('load-distribution')?.textContent?.trim();
+        const healthIndicator = document.getElementById('health-indicator')?.textContent?.trim();
+        const timestamp = document.getElementById('circuit-status-timestamp')?.textContent?.trim();
+
+        return !!loadDistribution && loadDistribution !== '--' &&
+          !!healthIndicator && healthIndicator !== '--' &&
+          !!timestamp && timestamp !== '--:--:--';
+      },
+      { timeout }
+    );
   }
 
   async submitJob(jobData: number[]): Promise<void> {
@@ -121,7 +133,26 @@ export class DashboardPage {
     await addWorkerBtn.click();
     
     // Wait for feedback
-    await this.page.waitForSelector('text=Worker added', { timeout: 5000 });
+    await this.page.waitForFunction(
+      () => {
+        const output = document.getElementById('job-results')?.textContent || '';
+        return output.includes('Worker added');
+      },
+      { timeout: 5000 }
+    );
+  }
+
+  async removeWorker(): Promise<void> {
+    const removeWorkerBtn = this.page.locator('#remove-worker');
+    await removeWorkerBtn.click();
+
+    await this.page.waitForFunction(
+      () => {
+        const output = document.getElementById('job-results')?.textContent || '';
+        return output.includes('Worker removed');
+      },
+      { timeout: 5000 }
+    );
   }
 
   async getJobResultsOutput(): Promise<string> {
@@ -162,6 +193,27 @@ export class DashboardPage {
     
     throw new Error(
       `Expected at least ${expectedCount} healthy workers within ${timeout}ms`
+    );
+  }
+
+  async waitForTotalWorkers(
+    expectedCount: number,
+    timeout: number = 15000
+  ): Promise<void> {
+    const startTime = Date.now();
+
+    while (Date.now() - startTime < timeout) {
+      const count = await this.getTotalWorkersCount();
+
+      if (count === expectedCount) {
+        return;
+      }
+
+      await this.page.waitForTimeout(500);
+    }
+
+    throw new Error(
+      `Expected total workers to equal ${expectedCount} within ${timeout}ms`
     );
   }
 

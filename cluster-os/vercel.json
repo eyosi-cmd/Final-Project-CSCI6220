@@ -5,6 +5,6 @@
   "rewrites": [
     { "source": "/health",         "destination": "/api/backend" },
     { "source": "/api/:path*",     "destination": "/api/backend" },
-    { "source": "/(.*)",           "destination": "/index.html" }
+    { "source": "/(.*)",           "destination": "/dashboard.html" }
   ]
 }

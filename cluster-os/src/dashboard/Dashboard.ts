@@ -27,9 +27,11 @@ interface JobRequest {
 
 // global variables for the dashboard
 var processMap: Map<string, ChildProcess> = new Map();
+var workerRuntimeIds: Map<string, string> = new Map();
 var jobMap: Map<string, JobRequest> = new Map();
 var lbClientConnection: net.Socket | null = null;
 var reqIdCounter = 0;
+var workerIdCounter = 0;
 
 function connectToLoadBalancer(): Promise<void> {
   return new Promise(function(resolve, reject) {
@@ -48,6 +50,18 @@ function connectToLoadBalancer(): Promise<void> {
       lbClientConnection = socket;
       console.log('[DASHBOARD] Succesfully connected to Load Balancer on port ' + lbPort);
       console.log('[DASHBOARD] TCP socket established for job streaming');
+      
+      // Add post-connection error handlers
+      socket.on('error', function(err) {
+        console.error('[DASHBOARD] Socket error after connection:', err.message);
+        lbClientConnection = null;
+      });
+      
+      socket.on('close', function() {
+        console.log('[DASHBOARD] Connection closed by Load Balancer');
+        lbClientConnection = null;
+      });
+      
       resolve();
     });
 
@@ -75,8 +89,8 @@ function connectToLoadBalancer(): Promise<void> {
 }
 
 function submitJobToLoadBalancer(data: number[]): Promise<string> {
-  if (!lbClientConnection) {
-    console.error('[JOB] Cannot submit - not connected to Load Balancer');
+  if (!lbClientConnection || !lbClientConnection.writable) {
+    console.error('[JOB] Cannot submit - not connected to Load Balancer or socket not writable');
     return Promise.reject(new Error('Not connected'));
   }
 
@@ -135,7 +149,18 @@ function getMetricsFromLoadBalancer(): Promise<ClusterStatus> {
         timestamp: Date.now()
       });
     });
-    req.setTimeout(2000);
+    req.setTimeout(2000, function() {
+      console.error('[METRICS] Metrics request timed out');
+      req.destroy();
+      resolve({
+        healthyWorkers: 0,
+        totalWorkers: 0,
+        activeJobs: 0,
+        queuedJobs: 0,
+        circuitBreakerStates: {},
+        timestamp: Date.now()
+      });
+    });
     req.end();
   });
 }
@@ -149,25 +174,49 @@ function spawnProcess(name: string, command: string, args: string[]): { error?: 
   var proc = spawn(command, args, {
     stdio: 'pipe',
     detached: false,
-    cwd: process.cwd()
+    cwd: __dirname + '/../../'
   });
 
   processMap.set(name, proc);
   console.log('[SPAWN] Process ' + name + ' spawned with PID ' + proc.pid);
 
+  function captureWorkerRuntimeId(output: string) {
+    if (!name.startsWith('worker-') || workerRuntimeIds.has(name)) {
+      return;
+    }
+
+    var match = output.match(/ID:\s*([a-f0-9-]{36})/i);
+    if (match && match[1]) {
+      workerRuntimeIds.set(name, match[1]);
+      console.log('[SPAWN] Captured runtime worker id for ' + name + ': ' + match[1]);
+    }
+  }
+
   proc.on('error', function(err) {
     console.error('[' + name + '] Error: ' + err.message);
+    processMap.delete(name);
+    workerRuntimeIds.delete(name);
+  });
+
+  proc.on('exit', function(code, signal) {
+    console.log('[' + name + '] Process exited with code ' + code + ', signal ' + signal);
+    processMap.delete(name);
+    workerRuntimeIds.delete(name);
   });
 
   if (proc.stdout) {
     proc.stdout.on('data', function(data) {
-      console.log('[' + name + '] ' + data.toString().trim());
+      var output = data.toString();
+      captureWorkerRuntimeId(output);
+      console.log('[' + name + '] ' + output.trim());
     });
   }
 
   if (proc.stderr) {
     proc.stderr.on('data', function(data) {
-      console.error('[' + name + '] ' + data.toString().trim());
+      var output = data.toString();
+      captureWorkerRuntimeId(output);
+      console.error('[' + name + '] ' + output.trim());
     });
   }
 
@@ -232,7 +281,8 @@ var server = http.createServer(function(req, res) {
     var workers = Array.from(processMap.keys()).filter(function(k) {
       return k.startsWith('worker-');
     });
-    var id = workers.length;
+    var id = workerIdCounter++;
+    console.log('[DASHBOARD] Adding worker ' + id + ' (current workers: ' + workers.length + ')');
     var result = spawnProcess('worker-' + id, 'node', [
       '-r', 'ts-node/register', 'src/worker/WorkerNode.ts'
     ]);
@@ -256,14 +306,18 @@ var server = http.createServer(function(req, res) {
       return;
     }
     var lastWorker = workers[workers.length - 1];
+    var runtimeWorkerId = workerRuntimeIds.get(lastWorker) || null;
     var result = killProcess(lastWorker);
     
     if (lbClientConnection && lbClientConnection.writable) {
-      var removeMessage = {
+      var removeMessage = runtimeWorkerId ? {
+        type: 'REMOVE_NODE',
+        nodeId: runtimeWorkerId
+      } : {
         type: 'REMOVE_UNHEALTHY_NODE'
       };
       lbClientConnection.write(JSON.stringify(removeMessage) + '\n');
-      console.log('[DASHBOARD] Sent REMOVE_UNHEALTHY_NODE message');
+      console.log('[DASHBOARD] Sent ' + removeMessage.type + ' message for ' + lastWorker + (runtimeWorkerId ? ' (' + runtimeWorkerId + ')' : ''));
     }
     
     res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -351,7 +405,7 @@ var server = http.createServer(function(req, res) {
     var asset = fs.readFileSync(assetPath);
     res.writeHead(200, { 'Content-Type': contentType });
     res.end(asset);
-  } else if (pathname === '/') {
+  } else if (pathname === '/' || pathname === '/dashboard.html') {
     var dashboardPath = path.join(__dirname, 'dashboard.html');
     var html = fs.readFileSync(dashboardPath, 'utf-8');
     res.writeHead(200, { 'Content-Type': 'text/html' });

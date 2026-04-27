@@ -15,6 +15,7 @@ export interface ClusterMessage {
 // heartbeat
 export interface HeartbeatPayload {
   activeJobs: number;
+  cpuUsage?: number | null;
 }
 
 // registry

@@ -2,9 +2,13 @@
 
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 const { randomUUID } = require('crypto');
 
 const app = express();
+
+// Serve static files from public/ (local dev — Vercel handles this via rewrites in production)
+app.use(express.static(path.join(__dirname, '..', 'public')));
 
 const allowedOrigins = [
   'https://cluster-os.vercel.app',
@@ -102,18 +106,47 @@ app.get('/api/metrics', (_req, res) => {
   const running = Array.from(jobs.values()).filter(j => j.status === 'running').length;
   
   const circuitBreakerStates = {};
+  const workersList = [];
+  
   for (const [id, w] of workers) {
     circuitBreakerStates[id.slice(0, 8)] = w.circuitState || (w.status === 'healthy' ? 'CLOSED' : 'OPEN');
+    const cpuUsage = Math.random() * (w.activeJobs > 0 ? 60 : 15);
+    workersList.push({
+      id: id.slice(0, 8),
+      name: w.name,
+      status: w.status,
+      activeJobs: w.activeJobs,
+      cpuUsage: Math.round(cpuUsage),
+      circuitState: w.circuitState || (w.status === 'healthy' ? 'CLOSED' : 'OPEN')
+    });
   }
+  
+  const lbCpuUsage = Math.random() * 30;
+  const lbMemoryUsage = Math.random() * 50 + 20;
+  const lbDiskUsage = Math.random() * 40 + 30;
   
   sendJson(res, 200, {
     lbRunning,
+    loadBalancerCpuUsage: Math.round(lbCpuUsage),
+    loadBalancerMemoryUsage: Math.round(lbMemoryUsage),
+    loadBalancerDiskUsage: Math.round(lbDiskUsage),
     healthyWorkers: lbRunning ? healthyWorkers.length : 0,
     totalWorkers: workers.size,
     activeJobs: running,
     queuedJobs: jobQueue.length,
     completedJobsTotal,
+    workers: workersList,
     circuitBreakerStates,
+    systemMetrics: {
+      cpu: Math.round(lbCpuUsage),
+      memory: Math.round(lbMemoryUsage),
+      disk: Math.round(lbDiskUsage),
+      processes: Math.floor(Math.random() * 200) + 100,
+      network: {
+        bytesIn: Math.floor(Math.random() * 1000000),
+        bytesOut: Math.floor(Math.random() * 1000000)
+      }
+    },
     timestamp: Date.now()
   });
 });
@@ -222,7 +255,7 @@ app.get('/api/jobs', (_req, res) => {
 });
 
 app.use((_req, res) => {
-  sendJson(res, 404, { error: 'not found' });
+  res.sendFile(path.join(__dirname, '..', 'public', 'dashboard.html'));
 });
 
 module.exports = app;

@@ -599,6 +599,51 @@ code {
     box-shadow: 0 0 12px rgba(245, 158, 11, 0.4);
 }
 
+/* Horizontal Bar Indicators */
+.hbar-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.hbar-label {
+    font-size: 16px;
+    color: #374151;
+    width: 130px;
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+.hbar-track {
+    flex: 0.5;
+    height: 7px;
+    background: #e5e7eb;
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.hbar-fill {
+    height: 100%;
+    width: 0%;
+    border-radius: 3px;
+    background: #22c55e;
+    transition: width 0.5s ease;
+}
+
+/* 0-29% green (low usage = good), 30-69% orange (medium), 70-100% red (high usage = bad) */
+.hbar-fill.low    { background: #22c55e; }
+.hbar-fill.medium { background: #f59e0b; }
+.hbar-fill.high   { background: #ef4444; }
+
+.hbar-percent {
+    font-size: 16px;
+    font-weight: 600;
+    color: #374151;
+    width: 40px;
+    text-align: right;
+    flex-shrink: 0;
+}
+
 .tuning-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));

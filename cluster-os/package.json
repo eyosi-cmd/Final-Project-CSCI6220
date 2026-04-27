@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "build": "npx tsc && cp src/dashboard/dashboard.html public/index.html && cp src/dashboard/dashboard.css public/dashboard.css && cp src/dashboard/dashboard-client.js public/dashboard-client.js && mkdir -p public/assets && cp src/dashboard/assets/banner.svg public/assets/banner.svg && cp src/dashboard/assets/favicon.svg public/assets/favicon.svg",
+    "build": "npx tsc && shx cp src/dashboard/dashboard.html public/dashboard.html && shx cp src/dashboard/dashboard.css public/dashboard.css && shx cp src/dashboard/dashboard-client.js public/dashboard-client.js && shx mkdir -p public/assets && shx cp src/dashboard/assets/banner.svg public/assets/banner.svg && shx cp src/dashboard/assets/favicon.svg public/assets/favicon.svg",
     "start": "concurrently -n DNS,LB,WORKER,DASHBOARD -c blue,green,yellow,magenta \"npm run start:dns\" \"npm run start:lb\" \"npm run start:worker\" \"npm run start:dashboard\"",
     "start:all": "concurrently -n DNS,LB,WORKER,DASHBOARD -c blue,green,yellow,magenta \"npm run start:dns\" \"npm run start:lb\" \"npm run start:worker\" \"npm run start:dashboard\"",
     "start:core": "concurrently -n DNS,LB,DASHBOARD -c blue,green,magenta \"npm run start:dns\" \"npm run start:lb\" \"npm run start:dashboard\"",
@@ -26,12 +26,14 @@
   "description": "",
   "dependencies": {
     "cors": "^2.8.5",
-    "express": "^4.19.2"
+    "express": "^4.19.2",
+    "systeminformation": "^5.31.5"
   },
   "devDependencies": {
     "@playwright/test": "^1.59.1",
     "@types/node": "^25.3.0",
     "concurrently": "^9.2.1",
+    "shx": "^0.3.4",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
   }

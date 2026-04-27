@@ -90,40 +90,50 @@ export class TCPTransport {
 
 // Client TCP
 export class ClientTCPTransport {
-  private socket: net.Socket;
+  private socket!: net.Socket;
   private messageHandler?: (message: ClusterMessage) => void;
   private buffer = '';
+  private host: string;
+  private port: number;
+  private destroyed = false;
+  private reconnectDelay = 2000;
 
   constructor(host: string, port: number) {
-    this.socket = net.createConnection({ host: host, port: port }, function() {
-      // connected
-    });
+    this.host = host;
+    this.port = port;
+    this.connect();
+  }
 
-    this.socket.on('data', function(data: any) {
+  private connect() {
+    if (this.destroyed) return;
+    this.buffer = '';
+    this.socket = net.createConnection({ host: this.host, port: this.port });
+
+    this.socket.on('data', (data: Buffer) => {
       this.buffer += data.toString();
-
       let newlineIndex;
       while ((newlineIndex = this.buffer.indexOf('\n')) !== -1) {
         const messageStr = this.buffer.slice(0, newlineIndex);
         this.buffer = this.buffer.slice(newlineIndex + 1);
-
         try {
           const message = JSON.parse(messageStr);
-          if (this.messageHandler) {
-            this.messageHandler(message);
-          }
+          if (this.messageHandler) this.messageHandler(message);
         } catch (e) {
-          console.log('error');
+          // malformed message — skip
         }
       }
-    }.bind(this));
-
-    this.socket.on('close', function() {
-      console.log('disconnected');
     });
 
-    this.socket.on('error', function(err: any) {
-      console.log('error');
+    this.socket.on('close', () => {
+      if (!this.destroyed) {
+        console.log('[ClientTCP] Disconnected from ' + this.host + ':' + this.port + ' — reconnecting in ' + this.reconnectDelay + 'ms');
+        setTimeout(() => this.connect(), this.reconnectDelay);
+      }
+    });
+
+    this.socket.on('error', (err: Error) => {
+      console.log('[ClientTCP] Connection error: ' + err.message);
+      // 'close' event fires after 'error', reconnect happens there
     });
   }
 
@@ -134,11 +144,14 @@ export class ClientTCPTransport {
 
   // send
   send(message: ClusterMessage) {
-    this.socket.write(JSON.stringify(message) + '\n');
+    if (this.socket && !this.socket.destroyed && this.socket.writable) {
+      this.socket.write(JSON.stringify(message) + '\n');
+    }
   }
 
   // close
   close() {
+    this.destroyed = true;
     this.socket.end();
   }
 }

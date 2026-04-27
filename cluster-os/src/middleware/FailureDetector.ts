@@ -4,6 +4,7 @@ export class FailureDetector {
   private heartbeats: Map<string, number> = new Map();
   private heartbeatLamportTimes: Map<string, number> = new Map();
   private nodeLoads: Map<string, number> = new Map();
+  private nodeCpuUsages: Map<string, number | null> = new Map();
   private heartbeatIntervals: Map<string, number[]> = new Map();
   private phiThreshold = 3.0;
   private maxIntervalHistory = 20;
@@ -20,6 +21,9 @@ export class FailureDetector {
     }
     if (payload !== undefined) {
       this.nodeLoads.set(nodeId, payload.activeJobs);
+      if (payload.cpuUsage !== undefined) {
+        this.nodeCpuUsages.set(nodeId, payload.cpuUsage);
+      }
     }
 
     if (previousTime !== undefined) {
@@ -103,6 +107,10 @@ export class FailureDetector {
     return this.nodeLoads.get(nodeId) || 0;
   }
 
+  getNodeCpuUsage(nodeId: string): number | null {
+    return this.nodeCpuUsages.get(nodeId) || null;
+  }
+
   getHealthyNodesByLoad(): Array<{ id: string; load: number }> {
     var healthy = [];
     for (var id of this.heartbeats.keys()) {
@@ -113,15 +121,17 @@ export class FailureDetector {
       }
     }
     
-    for (var i = 0; i < healthy.length - 1; i++) {
-      for (var j = 0; j < healthy.length - i - 1; j++) {
-        if (healthy[j].load > healthy[j + 1].load) {
-          var temp = healthy[j];
-          healthy[j] = healthy[j + 1];
-          healthy[j + 1] = temp;
-        }
-      }
-    }
+    var self = this;
+    healthy.sort(function(a, b) {
+      var cpuA = self.nodeCpuUsages.get(a.id) || 0;
+      var cpuB = self.nodeCpuUsages.get(b.id) || 0;
+      
+      var scoreA = (a.load / 3) * 0.6 + (cpuA / 100) * 0.4;
+      var scoreB = (b.load / 3) * 0.6 + (cpuB / 100) * 0.4;
+      
+      return scoreA - scoreB;
+    });
+    
     return healthy;
   }
 

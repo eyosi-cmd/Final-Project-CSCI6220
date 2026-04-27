@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { ClientTCPTransport } from '../transport/TCPTransport';
 import { LamportClock } from '../kernel/lamportClock';
+import { CpuMonitor } from '../kernel/CpuMonitor';
 import { ClusterMessage, HeartbeatPayload } from '../common/types';
 
 // worker node - processes jobs
@@ -8,6 +9,7 @@ class WorkerNode {
   private transport: ClientTCPTransport;
   private workerId: string;
   private lamportClock: LamportClock;
+  private cpuMonitor: CpuMonitor;
   private jobsInProgress = 0;
   private cancelledJobIds: Set<string> = new Set();
 
@@ -15,6 +17,8 @@ class WorkerNode {
     var self = this;
     this.workerId = randomUUID();
     this.lamportClock = new LamportClock(this.workerId);
+    this.cpuMonitor = new CpuMonitor();
+    this.cpuMonitor.startSampling();
 
     // connect to load balancer
     this.transport = new ClientTCPTransport('localhost', 3010);
@@ -41,8 +45,9 @@ class WorkerNode {
 
   private sendHeartbeat() {
     var time = this.lamportClock.increment();
-    var hbPayload = {
-      activeJobs: this.jobsInProgress
+    var hbPayload: HeartbeatPayload = {
+      activeJobs: this.jobsInProgress,
+      cpuUsage: this.cpuMonitor.getCpuUsage()
     };
     var hbMsg = {
       type: 'HEARTBEAT' as any,

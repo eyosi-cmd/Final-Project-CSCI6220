@@ -2,6 +2,7 @@ import { TCPTransport } from '../transport/TCPTransport';
 import { FailureDetector } from '../middleware/FailureDetector';
 import { Scheduler } from './Scheduler';
 import { LamportClock } from './lamportClock';
+import SystemMonitor from './SystemMonitor';
 import { ClusterMessage, JobContext, ClientAffinityRecord, CircuitBreakerStatus } from '../common/types';
 import { EventEmitter } from 'events';
 import * as http from 'http';
@@ -97,6 +98,7 @@ class Worker {
     halfOpenProbeInterval: 5000
   };
   private running = true;
+  private connToWorkerMap: Map<string, string> = new Map(); // connId → workerId
 
   constructor(
     id: number,
@@ -116,7 +118,7 @@ class Worker {
   private onJobCompleted?: () => void;
 
   start() {
-    var self = this;
+      var self: any = this;
     var processNextMessage = function() {
       if (!self.running) return;
 
@@ -130,10 +132,15 @@ class Worker {
     self.dispatcher.on('messageQueued', processNextMessage);
     self.dispatcher.on('connectionClosed', function(id) {
       self.nodeConnections.delete(id);
+      var workerId = self.connToWorkerMap.get(id);
+      if (workerId) {
+        self.failureDetector.removeNode(workerId);
+        self.connToWorkerMap.delete(id);
+        console.log('[LoadBalancer] Worker ' + workerId.substring(0, 8) + ' disconnected — removed from cluster');
+      }
     });
     processNextMessage();
 
-    var self = this;
     setInterval(function() {
       self.scheduler.setCircuitBreakerState(self.circuitBreakerState);
     }, 1000);
@@ -148,6 +155,9 @@ class Worker {
 
     if (message.type === 'HEARTBEAT') {
       var workerId = message.senderId || message.nodeId || id;
+      if (!this.connToWorkerMap.has(id)) {
+        this.connToWorkerMap.set(id, workerId);
+      }
       this.failureDetector.updateHeartbeat(workerId, message.payload, message.lamportTime);
     } else if (message.type === 'JOB_SUBMIT') {
       this.handleJobSubmit(id, message);
@@ -219,7 +229,7 @@ class Worker {
     } as JobContext;
     this.jobContextMap.set(message.requestId, jobContext);
 
-    var self = this;
+      var self: any = this;
     var timeoutHandle = setTimeout(function() {
       console.log('[Worker-' + self.id + '] Job ' + message.requestId + ' timed out after ' + timeoutMs + 'ms');
       self.handleJobTimeout(jobContext);
@@ -274,7 +284,7 @@ class Worker {
         (retryMessage as any).nodeId = this.clock.getNodeId();
         this.dispatcher.send(workerId, retryMessage);
 
-        var self = this;
+      var self: any = this;
         var timeoutHandle = setTimeout(function() {
           console.log('[Worker-' + self.id + '] Retry job ' + jobContext.requestId + ' timed out');
           self.handleJobTimeout(jobContext);
@@ -505,6 +515,7 @@ class LoadBalancer {
   private dispatcher: Dispatcher;
   private failureDetector: FailureDetector;
   private scheduler: Scheduler;
+  private systemMonitor: SystemMonitor;
   private workers: Worker[] = [];
   private workerPoolSize: number;
   private dnsSocket: net.Socket | null = null;
@@ -521,6 +532,8 @@ class LoadBalancer {
     this.dispatcher = new Dispatcher(port);
     this.failureDetector = new FailureDetector();
     this.scheduler = new Scheduler(this.failureDetector);
+    this.systemMonitor = new SystemMonitor();
+    this.systemMonitor.startSampling();
 
     this.initializeWorkerPool();
     this.monitorClusterHealth();
@@ -529,7 +542,7 @@ class LoadBalancer {
   }
 
   private registerWithDNS(dnsHost: string, dnsPort: number) {
-    var self = this;
+      var self: any = this;
     try {
       this.dnsSocket = net.createConnection({ host: dnsHost, port: dnsPort }, function() {
         console.log('[LoadBalancer] Connected to DNSRouter for registration');
@@ -614,7 +627,7 @@ class LoadBalancer {
       this.dnsSocket.write(JSON.stringify(deregisterMessage) + '\n');
       console.log('[LoadBalancer] Deregistration request sent to DNSRouter');
       
-      var self = this;
+      var self: any = this;
       setTimeout(function() {
         if (self.dnsSocket) {
           self.dnsSocket.end();
@@ -625,7 +638,7 @@ class LoadBalancer {
   }
 
   private initializeWorkerPool() {
-    var self = this;
+      var self: any = this;
     for (var i = 0; i < this.workerPoolSize; i++) {
       var worker = new Worker(i, this.dispatcher, this.failureDetector, this.scheduler, function() {
         self.completedJobsTotal++;
@@ -638,7 +651,7 @@ class LoadBalancer {
 
   // check cluster
   private monitorClusterHealth() {
-    var self = this;
+      var self: any = this;
     setInterval(function() {
       var healthy = self.failureDetector.getHealthyNodes();
       var queueSize = self.dispatcher.getQueueSize();
@@ -649,7 +662,7 @@ class LoadBalancer {
   }
 
   private startMetricsServer() {
-    var self = this;
+      var self: any = this;
     var server = http.createServer(function(req, res) {
       res.setHeader('Access-Control-Allow-Origin', '*');
       res.setHeader('Content-Type', 'application/json');
@@ -683,19 +696,24 @@ class LoadBalancer {
 
         var queuedJobs = self.dispatcher.getQueueSize();
         var healthyNodes = allHealthyNodes.length;
-        var totalWorkerCount = self.workers.length;
+        var totalWorkerCount = self.failureDetector.getAllNodes().length;
         
         if (healthyNodes > totalWorkerCount) {
           healthyNodes = totalWorkerCount;
         }
 
+        var systemMetrics = self.getSystemMetrics();
         var metrics = {
           healthyWorkers: healthyNodes,
           totalWorkers: totalWorkerCount,
           activeJobs: activeJobs,
           queuedJobs: queuedJobs,
-          completedJobsTotal: this.completedJobsTotal,
+          completedJobsTotal: self.completedJobsTotal,
           circuitBreakerStates: circuitBreakerStates,
+          loadBalancerCpuUsage: self.getLBCpuUsage(),
+          loadBalancerMemoryUsage: self.getLBMemoryUsage(),
+          loadBalancerDiskUsage: self.getLBDiskUsage(),
+          systemMetrics: systemMetrics,
           timestamp: Date.now()
         };
 
@@ -711,6 +729,22 @@ class LoadBalancer {
     server.listen(9001, function() {
       console.log('[LoadBalancer] Metrics server listening on port 9001');
     });
+  }
+
+  public getLBCpuUsage(): number | null {
+    return this.systemMonitor.getCpuUsage();
+  }
+
+  public getLBMemoryUsage(): number | null {
+    return this.systemMonitor.getMemoryUsage();
+  }
+
+  public getLBDiskUsage(): number | null {
+    return this.systemMonitor.getDiskUsage();
+  }
+
+  public getSystemMetrics() {
+    return this.systemMonitor.getMetrics();
   }
 
   shutdown() {

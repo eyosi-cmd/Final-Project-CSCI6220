@@ -14,18 +14,18 @@ test.describe('ClusterOS Dashboard', () => {
       await expect(page).toHaveTitle('ClusterOS Dashboard');
       
       // Verify main sections are visible
-      await expect(page.locator('text=System Controls')).toBeVisible();
-      await expect(page.locator('text=Cluster Metrics')).toBeVisible();
-      await expect(page.locator('text=Worker Health')).toBeVisible();
-      await expect(page.locator('text=Submit Job')).toBeVisible();
+      await expect(page.locator('.panel-header h2', { hasText: 'System Controls' })).toBeVisible();
+      await expect(page.locator('.panel-header h2', { hasText: 'Cluster Metrics' })).toBeVisible();
+      await expect(page.locator('.panel-header h2', { hasText: 'Worker Health (Circuit Breaker States)' })).toBeVisible();
+      await expect(page.locator('.panel-header h2', { hasText: 'Submit Job' })).toBeVisible();
     });
 
     test('should display all metric cards', async () => {
       // Verify metric headers
-      await expect(dashboard.page.locator('text=Healthy')).toBeVisible();
-      await expect(dashboard.page.locator('text=Total')).toBeVisible();
-      await expect(dashboard.page.locator('text=Active')).toBeVisible();
-      await expect(dashboard.page.locator('text=Queued')).toBeVisible();
+      await expect(dashboard.page.locator('.metric-header', { hasText: 'Healthy' })).toBeVisible();
+      await expect(dashboard.page.locator('.metric-header', { hasText: 'Total' })).toBeVisible();
+      await expect(dashboard.page.locator('.metric-header', { hasText: 'Active' })).toBeVisible();
+      await expect(dashboard.page.locator('.metric-header', { hasText: 'Queued' })).toBeVisible();
     });
   });
 
@@ -113,6 +113,8 @@ test.describe('ClusterOS Dashboard', () => {
     });
 
     test('should display timestamp', async ({ page }) => {
+      await dashboard.waitForMetricsUpdate();
+
       const timestamp = page.locator('#circuit-status-timestamp');
       await expect(timestamp).toBeVisible();
       
@@ -168,6 +170,39 @@ test.describe('ClusterOS Dashboard', () => {
       const startLbBtn = page.locator('#start-lb');
       
       await expect(startLbBtn).toBeEnabled();
+    });
+
+    test('add worker and remove worker buttons should update cluster metric cards', async () => {
+      await dashboard.waitForMetricsUpdate();
+
+      const initialHealthy = await dashboard.getHealthyWorkersCount();
+      const initialTotal = await dashboard.getTotalWorkersCount();
+
+      await dashboard.addWorker();
+      await dashboard.waitForTotalWorkers(initialTotal + 1, 20000);
+      await dashboard.waitForHealthyWorkers(initialHealthy + 1, 20000);
+
+      await expect.poll(async () => ({
+        healthy: await dashboard.getHealthyWorkersCount(),
+        total: await dashboard.getTotalWorkersCount(),
+      }), {
+        timeout: 20000,
+      }).toEqual({
+        healthy: initialHealthy + 1,
+        total: initialTotal + 1,
+      });
+
+      await dashboard.removeWorker();
+      await dashboard.waitForTotalWorkers(initialTotal, 20000);
+      await expect.poll(async () => ({
+        healthy: await dashboard.getHealthyWorkersCount(),
+        total: await dashboard.getTotalWorkersCount(),
+      }), {
+        timeout: 20000,
+      }).toEqual({
+        healthy: initialHealthy,
+        total: initialTotal,
+      });
     });
   });
 
