@@ -26,8 +26,28 @@ const jobQueue = [];
 let   lbRunning = true;
 let   requestCount = 0;
 let   completedJobsTotal = 0;
+let   initialized = false;
 
 const MAX_CONCURRENT_JOBS_PER_WORKER = 3;
+
+function initializeCluster() {
+  if (initialized) return;
+  initialized = true;
+  
+  for (let i = 0; i < 3; i++) {
+    const id = randomUUID();
+    const worker = {
+      id,
+      name: `worker-${i}`,
+      status: 'healthy',
+      circuitState: 'CLOSED',
+      activeJobs: 0,
+      lastHeartbeat: Date.now(),
+      createdAt: Date.now()
+    };
+    workers.set(id, worker);
+  }
+}
 
 function getHealthyWorkers() {
   return Array.from(workers.values()).filter(w => w.status === 'healthy');
@@ -71,24 +91,30 @@ function sendJson(res, status, body) {
 }
 
 app.get('/health', (_req, res) => {
+  initializeCluster();
   sendJson(res, 200, { status: 'ok', workers: workers.size, jobs: jobs.size, lbRunning });
 });
 
 app.get('/api/metrics', (_req, res) => {
+  initializeCluster();
+  
+  const healthyWorkers = getHealthyWorkers();
   const running = Array.from(jobs.values()).filter(j => j.status === 'running').length;
+  
   const circuitBreakerStates = {};
   for (const [id, w] of workers) {
     circuitBreakerStates[id.slice(0, 8)] = w.circuitState || (w.status === 'healthy' ? 'CLOSED' : 'OPEN');
   }
+  
   sendJson(res, 200, {
     lbRunning,
-    healthyWorkers: lbRunning ? getHealthyWorkers().length : 0,
-    totalWorkers:   workers.size,
-    activeJobs:     running,
-    queuedJobs:     jobQueue.length,
+    healthyWorkers: lbRunning ? healthyWorkers.length : 0,
+    totalWorkers: workers.size,
+    activeJobs: running,
+    queuedJobs: jobQueue.length,
     completedJobsTotal,
     circuitBreakerStates,
-    timestamp:      Date.now()
+    timestamp: Date.now()
   });
 });
 
